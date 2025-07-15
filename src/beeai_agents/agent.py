@@ -108,14 +108,14 @@ def get_or_create_memory(session_id: str) -> UnconstrainedMemory:
     return conversation_memories[session_id]
 
 
-def extract_citations_from_response(response_text: str) -> tuple[list[CitationMetadata], str]:
+def extract_citations_from_response(response_text: str, tool_tracker: TrackedTool = None) -> tuple[list[CitationMetadata], str]:
     """Extract citations from response text and return CitationMetadata objects with cleaned text"""
     citations = []
     cleaned_text = response_text
     offset = 0
 
+    # Handle explicit markdown-style citations first
     citation_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
-
     for match in re.finditer(citation_pattern, response_text):
         content = match.group(1)
         url = match.group(2)
@@ -143,65 +143,109 @@ def extract_citations_from_response(response_text: str) -> tuple[list[CitationMe
 
     cleaned_text = re.sub(citation_pattern, r"\1", response_text)
 
+    # Add automatic citations from tool results
+    if tool_tracker:
+        for tool_name, tool_result in tool_tracker.results:
+            if tool_name == "DuckDuckGo" and hasattr(tool_result, 'search_results'):
+                for search_result in tool_result.search_results:
+                    if hasattr(search_result, 'url') and hasattr(search_result, 'title'):
+                        # Create a citation for this DuckDuckGo result
+                        citation = CitationMetadata(
+                            kind="citation",
+                            url=search_result.url,
+                            title=search_result.title,
+                            description=getattr(search_result, 'description', '')[:100] + "..." if len(getattr(search_result, 'description', '')) > 100 else getattr(search_result, 'description', ''),
+                            start_index=None,  # Will be positioned at the end
+                            end_index=None,
+                        )
+                        citations.append(citation)
+                        
+            elif tool_name == "Wikipedia" and hasattr(tool_result, 'search_results'):
+                for search_result in tool_result.search_results:
+                    if hasattr(search_result, 'url') and hasattr(search_result, 'title'):
+                        citation = CitationMetadata(
+                            kind="citation",
+                            url=search_result.url,
+                            title=search_result.title,
+                            description=getattr(search_result, 'description', '')[:100] + "..." if len(getattr(search_result, 'description', '')) > 100 else getattr(search_result, 'description', ''),
+                            start_index=None,
+                            end_index=None,
+                        )
+                        citations.append(citation)
+                        
+            elif tool_name == "OpenMeteo":
+                # Add a generic weather citation
+                citation = CitationMetadata(
+                    kind="citation",
+                    url="https://open-meteo.com/",
+                    title="Open-Meteo Weather API",
+                    description="Weather forecast data",
+                    start_index=None,
+                    end_index=None,
+                )
+                citations.append(citation)
+
     return citations, cleaned_text
 
 
 @server.agent(
-    name="travel_guide",
-    description="Comprehensive travel guide agent that provides personalized recommendations with weather, local information, and current search results. Features dynamic citations and trajectory tracking.",
+    name="jennas_granite_chat",
+    description="A friendly and knowledgeable general chat assistant powered by Granite. Features the RequirementAgent from the BeeAI Framework with dynamic citations and trajectory tracking. Built with conditional tool requirements, session memory management, and real-time citation extraction from Wikipedia, DuckDuckGo, and OpenMeteo sources. Provides transparent reasoning through trajectory visualization and maintains conversation context across sessions.",
     metadata=Metadata(
         annotations=Annotations(
             beeai_ui=PlatformUIAnnotation(
                 ui_type=PlatformUIType.CHAT,
-                user_greeting="Hi! I'm your Travel Guide - here to help plan trips, check weather, and recommend restaurants. Where to?",
-                display_name="Travel Guide",
+                user_greeting="Hi! I'm your Granite-powered AI assistant—here to help with questions, research, weather, and more. What can I do for you today?",
+                display_name="Jenna's Granite Chat",
                 tools=[
                     AgentToolInfo(
                         name="Think",
-                        description="Advanced reasoning and analysis for travel planning, itinerary optimization, and recommendation personalization based on your preferences and constraints.",
+                        description="Advanced reasoning and analysis to provide thoughtful, well-structured responses to complex questions and topics.",
                     ),
                     AgentToolInfo(
                         name="Wikipedia",
-                        description="Search comprehensive information about destinations, attractions, history, culture, and local knowledge from Wikipedia's vast database.",
+                        description="Search comprehensive information from Wikipedia's vast knowledge base for factual information, definitions, and explanations.",
                     ),
                     AgentToolInfo(
                         name="Weather",
-                        description="Get current weather conditions, forecasts, and climate information for any destination to help with travel planning and packing decisions.",
+                        description="Get current weather conditions, forecasts, and climate information for any location worldwide.",
                     ),
                     AgentToolInfo(
                         name="DuckDuckGo",
-                        description="Search for current information about restaurants, hotels, events, transportation, and real-time travel updates from across the web.",
+                        description="Search the web for current information, news, and real-time updates on any topic.",
                     ),
                 ],
             )
         ),
-        author={"name": "Jenna Winkler, Tomas Weiss"},
+        author={"name": "Jenna Winkler"},
+        contributors=[{"name": "Tomas Weiss"}],
         recommended_models=["granite3.3:8b-beeai"],
-        tags=["Travel", "Planning", "Research"],
+        tags=["Granite", "Chat", "Research"],
         framework="BeeAI",
         programming_language="Python",
         license="Apache 2.0",
     ),
 )
-async def travel_guide(input: list[Message], context: Context) -> AsyncGenerator[RunYield, RunYieldResume]:
+async def general_chat_assistant(input: list[Message], context: Context) -> AsyncGenerator[RunYield, RunYieldResume]:
     """
-    Comprehensive travel guide agent that combines:
-    - Dynamic citations from search results
+    General chat assistant that provides:
+    - Friendly, knowledgeable conversation
+    - Dynamic citations from reliable sources
     - Trajectory tracking for transparency
-    - Multi-tool integration for comprehensive travel planning
+    - Multi-tool integration for comprehensive responses
     """
 
     user_message = input[-1].parts[0].content if input else "Hello"
     session_id = get_session_id(context)
 
-    tool_tracker = TrackedTool("travel_guide")
+    tool_tracker = TrackedTool("general_chat")
     trajectory = TrajectoryCapture()
 
     session_memory = get_or_create_memory(session_id)
 
     yield MessagePart(
         metadata=TrajectoryMetadata(
-            kind="trajectory", key=str(uuid.uuid4()), message=f"🌍 Travel Guide processing: '{user_message}'"
+            kind="trajectory", key=str(uuid.uuid4()), message=f"💬 Processing your message: '{user_message}'"
         )
     )
 
@@ -225,34 +269,45 @@ async def travel_guide(input: list[Message], context: Context) -> AsyncGenerator
                 ConditionalRequirement(tracked_duckduckgo, max_invocations=1, consecutive_allowed=False),
             ],
             instructions="""
-            You are a comprehensive travel guide assistant.
+            You are Granite Chat, a friendly and knowledgeable AI assistant powered by Granite.
 
-            Your goal is to analyse user request to plan a trip.
+            Your personality:
+            - Warm, approachable, and conversational
+            - Curious and enthusiastic about helping
+            - Clear and informative in explanations
+            - Adaptive to the user's tone and needs
 
-            First, think about what information would be most helpful based on the user query.
+            Your capabilities:
+            - Engage in natural, flowing conversations
+            - Provide accurate, well-researched information
+            - Help with questions across many topics
+            - Offer explanations, advice, and insights
 
-            Then use the following tools to gather accurate information based on your analysis.
+            How to respond:
+            1. First, think about what the user is asking and what information would be most helpful
+            2. Use tools when needed to provide accurate, current information:
+               - Wikipedia for factual information, definitions, and comprehensive knowledge
+               - DuckDuckGo for current events, recent information, and web searches
+               - OpenMeteo for weather-related questions
+            3. When you reference information from tool results, the system will automatically add citations
+            4. Provide conversational, engaging responses that directly address the user's needs
 
-            1. Use Wikipedia for destination background, history, and general information (search once per destination).
-            2. Use DuckDuckGo for current restaurant recommendations, events, hotels, and real-time information (be specific in searches).
-            3. Use OpenMeteo to get current weather conditions and forecasts (search once per location)
+            Response guidelines:
+            - Be conversational and natural, not robotic
+            - Reference specific facts and information from your tool results when relevant
+            - Acknowledge when you're uncertain or when information might be incomplete
+            - Ask follow-up questions when it would be helpful
+            - Adapt your level of detail to match the user's apparent needs
 
-            Return comprehensive final answer in Markdown format that first describes the destination followed by a plan for the trip.
-            You need to base everything off the information you've gathered from Wikipedia and DuckDuckGo and OpenMeteo.
-
-            Provide final answer in markdown format while being conversational, helpful and enthusiastic about travel based on accurate information gathered from the tools.
-
-            !!!CRITICAL!!!
-
-            In the final answer must be information that is ALWAYS based on a result of Wikipedia, DuckDuckGo or OpenMeteo, nothing else.            
-
-            In the final answer everything that is factual and obtained from Wikipedia, DuckDuckGo or OpenMeteo should be cited in format: [Factual information](URL)
-
-            Couple examples:
-            - The experience you will encouter is full of culinary delights! [Paris is well known](https://en.wikipedia.org/wiki/Paris) for its rich history and vibrant culinary scene.
-            - During your visit in following two days there are two events you should not miss: [Prague Beer Festival](https://en.wikipedia.org/wiki/Prague_Beer_Festival) and [Prague Music Festival](https://en.wikipedia.org/wiki/Prague_Music_Festival).
-            - If you need a great place to stay, [Hotel Blue Ocean](https://blueocean.com/) is a great choice.
-            - The weather in Oslo is expected to be sunny with a temperature of 20°C according to [OpenMeteo](https://open-meteo.com/), pack your hats & sunglasses!
+            !!!IMPORTANT CITATION RULES!!!
+            - When you use information from Wikipedia, DuckDuckGo, or OpenMeteo, try to cite it using this format: [Information](URL)
+            - If you reference specific facts from your tool results, format them as citations when possible
+            - Examples:
+              - [The first SMS was sent in 1992](https://example.com/url) according to search results
+              - [Quantum computing](https://en.wikipedia.org/wiki/Quantum_computing) is a rapidly advancing field
+              - The weather data shows [15°C with light rain](https://open-meteo.com/)
+            - If you don't have specific URLs, don't worry - the system will automatically add citations for tool results
+            - Focus on being helpful and informative first, citations second
             """,
         )
 
@@ -260,7 +315,7 @@ async def travel_guide(input: list[Message], context: Context) -> AsyncGenerator
             metadata=TrajectoryMetadata(
                 kind="trajectory",
                 key=str(uuid.uuid4()),
-                message="🛠️ Travel Guide initialized with Think, Wikipedia, Weather, and Search tools",
+                message="🛠️ Granite Chat initialized with Think, Wikipedia, Weather, and Search tools",
             )
         )
 
@@ -290,7 +345,7 @@ async def travel_guide(input: list[Message], context: Context) -> AsyncGenerator
                     )
                 )
 
-        citations, cleaned_response_text = extract_citations_from_response(response_text)
+        citations, cleaned_response_text = extract_citations_from_response(response_text, tool_tracker)
 
         yield MessagePart(content=cleaned_response_text)
 
@@ -301,7 +356,7 @@ async def travel_guide(input: list[Message], context: Context) -> AsyncGenerator
             metadata=TrajectoryMetadata(
                 kind="trajectory",
                 key=str(uuid.uuid4()),
-                message="✅ Travel Guide completed successfully with citations",
+                message="✅ Response completed successfully",
             )
         )
 
@@ -309,7 +364,7 @@ async def travel_guide(input: list[Message], context: Context) -> AsyncGenerator
         yield MessagePart(
             metadata=TrajectoryMetadata(kind="trajectory", key=str(uuid.uuid4()), message=f"❌ Error: {str(e)}")
         )
-        yield MessagePart(content=f"🚨 Sorry, I encountered an error while planning your trip: {str(e)}")
+        yield MessagePart(content=f"🚨 I apologize, but I encountered an error while processing your request: {str(e)}")
 
 
 def run():
