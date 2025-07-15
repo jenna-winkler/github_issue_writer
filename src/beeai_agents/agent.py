@@ -108,14 +108,14 @@ def get_or_create_memory(session_id: str) -> UnconstrainedMemory:
     return conversation_memories[session_id]
 
 
-def extract_citations_from_response(response_text: str, tool_tracker: TrackedTool = None) -> tuple[list[CitationMetadata], str]:
+def extract_citations_from_response(response_text: str) -> tuple[list[CitationMetadata], str]:
     """Extract citations from response text and return CitationMetadata objects with cleaned text"""
     citations = []
     cleaned_text = response_text
     offset = 0
 
-    # Handle explicit markdown-style citations first
     citation_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
+
     for match in re.finditer(citation_pattern, response_text):
         content = match.group(1)
         url = match.group(2)
@@ -142,48 +142,6 @@ def extract_citations_from_response(response_text: str, tool_tracker: TrackedToo
         offset += removed_chars
 
     cleaned_text = re.sub(citation_pattern, r"\1", response_text)
-
-    # Add automatic citations from tool results
-    if tool_tracker:
-        for tool_name, tool_result in tool_tracker.results:
-            if tool_name == "DuckDuckGo" and hasattr(tool_result, 'search_results'):
-                for search_result in tool_result.search_results:
-                    if hasattr(search_result, 'url') and hasattr(search_result, 'title'):
-                        # Create a citation for this DuckDuckGo result
-                        citation = CitationMetadata(
-                            kind="citation",
-                            url=search_result.url,
-                            title=search_result.title,
-                            description=getattr(search_result, 'description', '')[:100] + "..." if len(getattr(search_result, 'description', '')) > 100 else getattr(search_result, 'description', ''),
-                            start_index=None,  # Will be positioned at the end
-                            end_index=None,
-                        )
-                        citations.append(citation)
-                        
-            elif tool_name == "Wikipedia" and hasattr(tool_result, 'search_results'):
-                for search_result in tool_result.search_results:
-                    if hasattr(search_result, 'url') and hasattr(search_result, 'title'):
-                        citation = CitationMetadata(
-                            kind="citation",
-                            url=search_result.url,
-                            title=search_result.title,
-                            description=getattr(search_result, 'description', '')[:100] + "..." if len(getattr(search_result, 'description', '')) > 100 else getattr(search_result, 'description', ''),
-                            start_index=None,
-                            end_index=None,
-                        )
-                        citations.append(citation)
-                        
-            elif tool_name == "OpenMeteo":
-                # Add a generic weather citation
-                citation = CitationMetadata(
-                    kind="citation",
-                    url="https://open-meteo.com/",
-                    title="Open-Meteo Weather API",
-                    description="Weather forecast data",
-                    start_index=None,
-                    end_index=None,
-                )
-                citations.append(citation)
 
     return citations, cleaned_text
 
@@ -220,7 +178,7 @@ def extract_citations_from_response(response_text: str, tool_tracker: TrackedToo
         author={"name": "Jenna Winkler"},
         contributors=[{"name": "Tomas Weiss"}],
         recommended_models=["granite3.3:8b-beeai"],
-        tags=["Granite", "Chat", "Research"],
+        tags=["Granite", "Chat", "Research", "Assist"],
         framework="BeeAI",
         programming_language="Python",
         license="Apache 2.0",
@@ -289,25 +247,24 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
                - Wikipedia for factual information, definitions, and comprehensive knowledge
                - DuckDuckGo for current events, recent information, and web searches
                - OpenMeteo for weather-related questions
-            3. When you reference information from tool results, the system will automatically add citations
+            3. Synthesize information from multiple sources when helpful
             4. Provide conversational, engaging responses that directly address the user's needs
 
             Response guidelines:
             - Be conversational and natural, not robotic
-            - Reference specific facts and information from your tool results when relevant
+            - Cite sources when you use factual information from tools
             - Acknowledge when you're uncertain or when information might be incomplete
             - Ask follow-up questions when it would be helpful
             - Adapt your level of detail to match the user's apparent needs
 
             !!!IMPORTANT CITATION RULES!!!
-            - When you use information from Wikipedia, DuckDuckGo, or OpenMeteo, try to cite it using this format: [Information](URL)
-            - If you reference specific facts from your tool results, format them as citations when possible
+            - When you use factual information from Wikipedia, DuckDuckGo, or OpenMeteo, cite it using this format: [Factual information](URL)
             - Examples:
-              - [The first SMS was sent in 1992](https://example.com/url) according to search results
               - [Quantum computing](https://en.wikipedia.org/wiki/Quantum_computing) is a rapidly advancing field
-              - The weather data shows [15°C with light rain](https://open-meteo.com/)
-            - If you don't have specific URLs, don't worry - the system will automatically add citations for tool results
-            - Focus on being helpful and informative first, citations second
+              - According to recent reports, [the new policy](https://example.com/news) will take effect next month
+              - The weather in London is [currently 15°C with light rain](https://open-meteo.com/)
+            - Only cite information that actually came from your tool results
+            - Don't cite information you already know or general knowledge
             """,
         )
 
@@ -345,7 +302,7 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
                     )
                 )
 
-        citations, cleaned_response_text = extract_citations_from_response(response_text, tool_tracker)
+        citations, cleaned_response_text = extract_citations_from_response(response_text)
 
         yield MessagePart(content=cleaned_response_text)
 
