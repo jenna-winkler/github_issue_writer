@@ -42,4 +42,4 @@ jobs:
 
     - name: Build and Push
       run: |
-        beeai build ./ --tag ghcr.io/${{ github.repository }}/my-agent:latest --no-import --multi-platform --push
+        beeai build ./ --tag ghcr.io/${{ github.repository }}/granite_chat_agent:v0.0.1 --no-import --multi-platform --push
