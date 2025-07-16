@@ -18,7 +18,6 @@ from beeai_framework.agents.types import AgentExecutionConfig
 from beeai_framework.backend import ChatModel, ChatModelParameters
 from beeai_framework.backend.message import UserMessage, AssistantMessage
 from beeai_framework.memory import UnconstrainedMemory
-from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
 from beeai_framework.tools import Tool
 from beeai_framework.tools.search.duckduckgo import DuckDuckGoSearchTool
 from beeai_framework.tools.search.wikipedia import WikipediaTool
@@ -30,72 +29,11 @@ load_dotenv()
 # Defaults to Ollama with .env file, otherwise is provided by the platform
 os.environ["OPENAI_API_BASE"] = os.getenv("LLM_API_BASE", "http://localhost:11434/v1")
 os.environ["OPENAI_API_KEY"] = os.getenv("LLM_API_KEY", "dummy")
-model = f"openai:{os.getenv('LLM_MODEL', 'llama3.1')}"
+model = f"ollama:{os.getenv('LLM_MODEL', 'llama3.1')}"
 
 server = Server()
 
 conversation_memories = {}
-
-
-class TrajectoryCapture:
-    """Captures trajectory steps for display"""
-
-    def __init__(self):
-        self.steps = []
-
-    def write(self, message: str) -> int:
-        self.steps.append(message.strip())
-        return len(message)
-
-
-class TrackedTool:
-    """Base class for tool tracking"""
-
-    def __init__(self, tool_name: str):
-        self.tool_name = tool_name
-        self.results = []
-
-    def add_result(self, result):
-        self.results.append(result)
-
-
-class TrackedDuckDuckGoTool(DuckDuckGoSearchTool):
-    """DuckDuckGo tool with result tracking"""
-
-    def __init__(self, tracker: TrackedTool):
-        super().__init__()
-        self.tracker = tracker
-
-    async def _run(self, input_data, options, context):
-        result = await super()._run(input_data, options, context)
-        self.tracker.add_result(("DuckDuckGo", result))
-        return result
-
-
-class TrackedWikipediaTool(WikipediaTool):
-    """Wikipedia tool with result tracking"""
-
-    def __init__(self, tracker: TrackedTool):
-        super().__init__()
-        self.tracker = tracker
-
-    async def _run(self, input_data, options, context):
-        result = await super()._run(input_data, options, context)
-        self.tracker.add_result(("Wikipedia", result))
-        return result
-
-
-class TrackedOpenMeteoTool(OpenMeteoTool):
-    """Weather tool with result tracking"""
-
-    def __init__(self, tracker: TrackedTool):
-        super().__init__()
-        self.tracker = tracker
-
-    async def _run(self, input_data, options, context):
-        result = await super()._run(input_data, options, context)
-        self.tracker.add_result(("OpenMeteo", result))
-        return result
 
 
 def get_session_id(context: Context) -> str:
@@ -201,9 +139,6 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
     user_message = input[-1].parts[0].content if input else "Hello"
     session_id = get_session_id(context)
 
-    tool_tracker = TrackedTool("general_chat")
-    trajectory = TrajectoryCapture()
-
     session_memory = get_or_create_memory(session_id)
 
     yield MessagePart(
@@ -215,20 +150,13 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
     try:
         await session_memory.add(UserMessage(user_message))
 
-        tracked_duckduckgo = TrackedDuckDuckGoTool(tool_tracker)
-        tracked_wikipedia = TrackedWikipediaTool(tool_tracker)
-        tracked_weather = TrackedOpenMeteoTool(tool_tracker)
-
         agent = RequirementAgent(
             llm=ChatModel.from_name(model, ChatModelParameters(temperature=1)),
             memory=session_memory,
-            tools=[ThinkTool(), tracked_wikipedia, tracked_weather, tracked_duckduckgo],
+            tools=[ThinkTool(), WikipediaTool(), OpenMeteoTool(), DuckDuckGoSearchTool()],
             requirements=[
-                ConditionalRequirement(
-                    ThinkTool, force_at_step=1, force_after=Tool, consecutive_allowed=False
-                )
+                ConditionalRequirement(ThinkTool, force_at_step=1, force_after=Tool, consecutive_allowed=False)
             ],
-            notes=["If the task is unclear, use the '{{final_answer_name}}' tool to ask for more information."],
             instructions="""
             You are a knowledgeable and helpful general-purpose assistant designed to answer questions with real-world information.
 
@@ -244,14 +172,14 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
 
             ## Response Format:
 
-            - Provide your final answer in **Markdown format**.
             - Be clear, conversational, and engaging, while maintaining a tone appropriate to the user's request (enthusiastic for travel, helpful for research, precise for facts, etc.).
             - The response must be **entirely based on information gathered from the tools** listed above.
 
             !!!CRITICAL!!!
 
-            - Every factual statement in your final answer **must be backed by a citation** from one of the tools used.
-            - Use this citation format: `[Descriptive text](URL)` (e.g., `[Paris is known for its landmarks](https://en.wikipedia.org/wiki/Paris)`).
+            - Every factual statement that you've obtained from Wikipedia, OpenMeteo or DuckDuckGo in your final answer **must be backed by a citation**
+            - Use this citation format: `[Descriptive text](URL)`
+            - Don't duplicate citations, make sure you inline them to the text.
 
             ## Examples of Citations:
 
@@ -273,31 +201,28 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
             )
         )
 
-        response = await agent.run(
-            user_message, execution=AgentExecutionConfig(max_iterations=10, max_retries_per_step=2, total_max_retries=5)
-        ).middleware(GlobalTrajectoryMiddleware(target=trajectory, included=[Tool]))
+        response_text = ""
 
-        response_text = response.answer.text
+        async for event, meta in agent.run(
+            user_message, execution=AgentExecutionConfig(max_iterations=20, max_retries_per_step=2, total_max_retries=5), expected_output="The answer must be in Markdown format and include citations."
+        ):
+            if meta.name == "success":
+                last_step = event.state.steps[-1] if event.state.steps else None
+
+                if last_step and last_step.tool is not None:
+                    if last_step.tool.name == "final_answer":
+                        response_text += last_step.input["response"]
+                    elif last_step.tool.name == "Wikipedia":
+                        yield MessagePart(metadata=TrajectoryMetadata(tool_name="Wikipedia", tool_input={"query": last_step.input["query"]}))
+                    elif last_step.tool.name == "DuckDuckGo":
+                        yield MessagePart(metadata=TrajectoryMetadata(tool_name="DuckDuckGo", tool_input={"query": last_step.input["query"]}))
+                    elif last_step.tool.name == "OpenMeteo":
+                        yield MessagePart(metadata=TrajectoryMetadata(tool_name="OpenMeteo", tool_input={"query": last_step.input["query"]}))
+                    elif last_step.tool.name == "think":
+                        yield MessagePart(metadata=TrajectoryMetadata(message=last_step.input["thoughts"], tool_name="Thought"))
+
 
         await session_memory.add(AssistantMessage(response_text))
-
-        for i, step in enumerate(trajectory.steps):
-            if step.strip():
-                tool_name = None
-                if "ThinkTool" in step:
-                    tool_name = "Think"
-                elif "WikipediaTool" in step:
-                    tool_name = "Wikipedia"
-                elif "OpenMeteoTool" in step:
-                    tool_name = "Weather"
-                elif "DuckDuckGo" in step:
-                    tool_name = "DuckDuckGo"
-
-                yield MessagePart(
-                    metadata=TrajectoryMetadata(
-                        kind="trajectory", key=str(uuid.uuid4()), message=f"Step {i + 1}: {step}", tool_name=tool_name
-                    )
-                )
 
         citations, cleaned_response_text = extract_citations_from_response(response_text)
 
@@ -318,7 +243,7 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
         # Log the full exception with stack trace to console
         print(f"❌ Error in general_chat_assistant: {str(e)}")
         print(f"Stack trace:\n{traceback.format_exc()}")
-        
+
         yield MessagePart(
             metadata=TrajectoryMetadata(kind="trajectory", key=str(uuid.uuid4()), message=f"❌ Error: {str(e)}")
         )
