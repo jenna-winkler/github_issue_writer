@@ -1,6 +1,7 @@
 import os
 import re
 import uuid
+import traceback
 from collections.abc import AsyncGenerator
 
 from dotenv import load_dotenv
@@ -29,7 +30,13 @@ load_dotenv()
 # Defaults to Ollama with .env file, otherwise is provided by the platform
 os.environ["OPENAI_API_BASE"] = os.getenv("LLM_API_BASE", "http://localhost:11434/v1")
 os.environ["OPENAI_API_KEY"] = os.getenv("LLM_API_KEY", "dummy")
-model = f"openai/{os.getenv('LLM_MODEL', 'ollama:granite3.3:8b-beeai')}"
+
+def sanitize_model_from_platform(model: str):
+    # Platform uses dummy, framework expects some real model
+    if model == "dummy":
+        return "ollama:granite3.3:8b-beeai"
+    else:
+        return model
 
 server = Server()
 
@@ -219,7 +226,7 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
         tracked_weather = TrackedOpenMeteoTool(tool_tracker)
 
         agent = RequirementAgent(
-            llm=ChatModel.from_name(model),
+            llm=ChatModel.from_name(sanitize_model_from_platform(os.getenv("LLM_MODEL", "ollama:granite3.3:8b-beeai"))),
             memory=session_memory,
             tools=[ThinkTool(), tracked_wikipedia, tracked_weather, tracked_duckduckgo],
             requirements=[
@@ -316,6 +323,10 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
         )
 
     except Exception as e:
+        # Log the full exception with stack trace to console
+        print(f"❌ Error in general_chat_assistant: {str(e)}")
+        print(f"Stack trace:\n{traceback.format_exc()}")
+        
         yield MessagePart(
             metadata=TrajectoryMetadata(kind="trajectory", key=str(uuid.uuid4()), message=f"❌ Error: {str(e)}")
         )
