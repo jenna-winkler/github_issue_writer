@@ -15,7 +15,7 @@ from acp_sdk.server import Context, RunYield, RunYieldResume, Server
 from beeai_framework.agents.experimental import RequirementAgent
 from beeai_framework.agents.experimental.requirements.conditional import ConditionalRequirement
 from beeai_framework.agents.types import AgentExecutionConfig
-from beeai_framework.backend import ChatModel
+from beeai_framework.backend import ChatModel, ChatModelParameters
 from beeai_framework.backend.message import UserMessage, AssistantMessage
 from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
@@ -30,13 +30,7 @@ load_dotenv()
 # Defaults to Ollama with .env file, otherwise is provided by the platform
 os.environ["OPENAI_API_BASE"] = os.getenv("LLM_API_BASE", "http://localhost:11434/v1")
 os.environ["OPENAI_API_KEY"] = os.getenv("LLM_API_KEY", "dummy")
-
-def sanitize_model_from_platform(model: str):
-    # Platform uses dummy, framework expects some real model
-    if model == "dummy":
-        return "ollama:granite3.3:8b-beeai"
-    else:
-        return model
+model = f"openai:{os.getenv('LLM_MODEL', 'llama3.1')}"
 
 server = Server()
 
@@ -226,17 +220,15 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
         tracked_weather = TrackedOpenMeteoTool(tool_tracker)
 
         agent = RequirementAgent(
-            llm=ChatModel.from_name(sanitize_model_from_platform(os.getenv("LLM_MODEL", "ollama:granite3.3:8b-beeai"))),
+            llm=ChatModel.from_name(model, ChatModelParameters(temperature=1)),
             memory=session_memory,
             tools=[ThinkTool(), tracked_wikipedia, tracked_weather, tracked_duckduckgo],
             requirements=[
                 ConditionalRequirement(
-                    ThinkTool, force_at_step=1, force_after=Tool, consecutive_allowed=False, max_invocations=3
-                ),
-                ConditionalRequirement(tracked_wikipedia, max_invocations=1, consecutive_allowed=False),
-                ConditionalRequirement(tracked_weather, max_invocations=1, consecutive_allowed=False),
-                ConditionalRequirement(tracked_duckduckgo, max_invocations=1, consecutive_allowed=False),
+                    ThinkTool, force_at_step=1, force_after=Tool, consecutive_allowed=False
+                )
             ],
+            notes=["If the task is unclear, use the '{{final_answer_name}}' tool to ask for more information."],
             instructions="""
             You are a knowledgeable and helpful general-purpose assistant designed to answer questions with real-world information.
 
