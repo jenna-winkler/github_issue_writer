@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - feat/github-actions-example
+      - feat/add-llm-proxy-support
 
 jobs:
   build:

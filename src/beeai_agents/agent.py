@@ -24,7 +24,11 @@ from beeai_framework.tools.search.wikipedia import WikipediaTool
 from beeai_framework.tools.think import ThinkTool
 from beeai_framework.tools.weather import OpenMeteoTool
 
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv()
+
+# Defaults to Ollama with .env file, otherwise is provided by the platform
+os.environ["OPENAI_API_BASE"] = os.getenv("LLM_API_BASE", "http://localhost:11434/v1")
+os.environ["OPENAI_API_KEY"] = os.getenv("LLM_API_KEY", "dummy")
 model = os.getenv("LLM_MODEL", "ollama:granite3.3:8b-beeai")
 
 server = Server()
