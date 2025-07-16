@@ -23,7 +23,7 @@ jobs:
         python-version: '3.x'
 
     - name: Install BeeAI CLI
-      run: pip install beeai-cli
+      run: pip install beeai-cli==0.2.15rc6
 
     - name: Login to GitHub Container Registry
       uses: docker/login-action@v2
@@ -42,5 +42,4 @@ jobs:
 
     - name: Build and Push
       run: |
-        beeai build ./ --tag ghcr.io/${{ github.repository }}/my-agent:latest --no-import --multi-platform
-        docker push ghcr.io/${{ github.repository }}/my-agent:latest
+        beeai build ./ --tag ghcr.io/${{ github.repository }}/my-agent:latest --no-import --multi-platform --push
