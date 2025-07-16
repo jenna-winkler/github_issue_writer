@@ -29,7 +29,7 @@ load_dotenv()
 # Defaults to Ollama with .env file, otherwise is provided by the platform
 os.environ["OPENAI_API_BASE"] = os.getenv("LLM_API_BASE", "http://localhost:11434/v1")
 os.environ["OPENAI_API_KEY"] = os.getenv("LLM_API_KEY", "dummy")
-model = f"openai:{os.getenv('LLM_MODEL', 'llama3.1')}"
+model = f"ollama:{os.getenv('LLM_MODEL', 'llama3.1')}"
 
 server = Server()
 
