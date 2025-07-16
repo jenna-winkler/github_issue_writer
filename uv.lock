@@ -194,7 +194,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "acp-sdk", specifier = ">=0.13.0" },
-    { name = "beeai-framework", extras = ["wikipedia", "duckduckgo", "openmeteo"], specifier = ">=0.1.27" },
+    { name = "beeai-framework", extras = ["wikipedia", "duckduckgo", "openmeteo"], specifier = ">=0.1.29" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
@@ -202,7 +202,7 @@ requires-dist = [
 
 [[package]]
 name = "beeai-framework"
-version = "0.1.27"
+version = "0.1.30"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -215,9 +215,9 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6d/c1/66ee4411bde17d65f5299454a3c85fa109fbf0949aa90025550dad8dce0b/beeai_framework-0.1.27.tar.gz", hash = "sha256:cce083f8b382f21fa6df6b75576be6cba4da1c795bbd5e72b9ef49d87b61046d", size = 119999, upload-time = "2025-07-01T19:06:34.763Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f1/d9/54bfd13095a4ff46667c5cf30d6ef7a231937d65737df4a593050269564d/beeai_framework-0.1.30.tar.gz", hash = "sha256:e27302268d41741ebef08ba0411b98dd3322b21dae2d79f33b293c57509129b8", size = 117790, upload-time = "2025-07-09T16:49:53.464Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a8/18/0fd2acdc0f84bc1fd432b28854695a63274dceddd93a7198c06ee146ba30/beeai_framework-0.1.27-py3-none-any.whl", hash = "sha256:c0b3aed5b05c0e6be6b43ecdf87d7948a2affdc52a13e6eb83299b8bc73ec5f1", size = 271869, upload-time = "2025-07-01T19:06:33.294Z" },
+    { url = "https://files.pythonhosted.org/packages/95/9f/aef04339767f723d09841129dfc8071a61e4a9652638b4ea5925c562b55c/beeai_framework-0.1.30-py3-none-any.whl", hash = "sha256:a8c8d171477ace471e4a9bb16701dff919705945bcbc0bc12e892da9afdc3c95", size = 216176, upload-time = "2025-07-09T16:49:52.1Z" },
 ]
 
 [package.optional-dependencies]

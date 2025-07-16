@@ -1,6 +1,7 @@
 import os
 import re
 import uuid
+import traceback
 from collections.abc import AsyncGenerator
 
 from dotenv import load_dotenv
@@ -14,7 +15,7 @@ from acp_sdk.server import Context, RunYield, RunYieldResume, Server
 from beeai_framework.agents.experimental import RequirementAgent
 from beeai_framework.agents.experimental.requirements.conditional import ConditionalRequirement
 from beeai_framework.agents.types import AgentExecutionConfig
-from beeai_framework.backend import ChatModel
+from beeai_framework.backend import ChatModel, ChatModelParameters
 from beeai_framework.backend.message import UserMessage, AssistantMessage
 from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.middleware.trajectory import GlobalTrajectoryMiddleware
@@ -24,8 +25,12 @@ from beeai_framework.tools.search.wikipedia import WikipediaTool
 from beeai_framework.tools.think import ThinkTool
 from beeai_framework.tools.weather import OpenMeteoTool
 
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
-model = os.getenv("LLM_MODEL", "ollama:granite3.3:8b-beeai")
+load_dotenv()
+
+# Defaults to Ollama with .env file, otherwise is provided by the platform
+os.environ["OPENAI_API_BASE"] = os.getenv("LLM_API_BASE", "http://localhost:11434/v1")
+os.environ["OPENAI_API_KEY"] = os.getenv("LLM_API_KEY", "dummy")
+model = f"openai:{os.getenv('LLM_MODEL', 'llama3.1')}"
 
 server = Server()
 
@@ -215,17 +220,15 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
         tracked_weather = TrackedOpenMeteoTool(tool_tracker)
 
         agent = RequirementAgent(
-            llm=ChatModel.from_name(model),
+            llm=ChatModel.from_name(model, ChatModelParameters(temperature=1)),
             memory=session_memory,
             tools=[ThinkTool(), tracked_wikipedia, tracked_weather, tracked_duckduckgo],
             requirements=[
                 ConditionalRequirement(
-                    ThinkTool, force_at_step=1, force_after=Tool, consecutive_allowed=False, max_invocations=3
-                ),
-                ConditionalRequirement(tracked_wikipedia, max_invocations=1, consecutive_allowed=False),
-                ConditionalRequirement(tracked_weather, max_invocations=1, consecutive_allowed=False),
-                ConditionalRequirement(tracked_duckduckgo, max_invocations=1, consecutive_allowed=False),
+                    ThinkTool, force_at_step=1, force_after=Tool, consecutive_allowed=False
+                )
             ],
+            notes=["If the task is unclear, use the '{{final_answer_name}}' tool to ask for more information."],
             instructions="""
             You are a knowledgeable and helpful general-purpose assistant designed to answer questions with real-world information.
 
@@ -312,6 +315,10 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
         )
 
     except Exception as e:
+        # Log the full exception with stack trace to console
+        print(f"❌ Error in general_chat_assistant: {str(e)}")
+        print(f"Stack trace:\n{traceback.format_exc()}")
+        
         yield MessagePart(
             metadata=TrajectoryMetadata(kind="trajectory", key=str(uuid.uuid4()), message=f"❌ Error: {str(e)}")
         )
