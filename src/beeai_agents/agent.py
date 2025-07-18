@@ -4,6 +4,7 @@ import uuid
 import traceback
 from collections.abc import AsyncGenerator
 
+from beeai_framework.adapters.openai import OpenAIChatModel
 from dotenv import load_dotenv
 
 from acp_sdk import Annotations, MessagePart, Metadata
@@ -26,13 +27,7 @@ from beeai_framework.tools.weather import OpenMeteoTool
 
 load_dotenv()
 
-# Defaults to Ollama with .env file, otherwise is provided by the platform
-os.environ["OPENAI_API_BASE"] = os.getenv("LLM_API_BASE", "http://localhost:11434/v1")
-os.environ["OPENAI_API_KEY"] = os.getenv("LLM_API_KEY", "dummy")
-model = f"ollama:{os.getenv('LLM_MODEL', 'llama3.1')}"
-
 server = Server()
-
 conversation_memories = {}
 
 
@@ -150,8 +145,15 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
     try:
         await session_memory.add(UserMessage(user_message))
 
+        OpenAIChatModel.tool_choice_support = {"none", "single", "auto"}
+        llm = OpenAIChatModel(
+            model_id=os.getenv('LLM_MODEL', 'llama3.1'),
+            base_url=os.getenv("LLM_API_BASE", "http://localhost:11434/v1"),
+            api_key=os.getenv("LLM_API_KEY", "dummy"),
+        )
+
         agent = RequirementAgent(
-            llm=ChatModel.from_name(model, ChatModelParameters(temperature=1)),
+            llm=llm,
             memory=session_memory,
             tools=[ThinkTool(), WikipediaTool(), OpenMeteoTool(), DuckDuckGoSearchTool()],
             requirements=[
