@@ -64,7 +64,7 @@ def is_casual(msg: str) -> bool:
         annotations=Annotations(
             beeai_ui=PlatformUIAnnotation(
                 ui_type=PlatformUIType.CHAT,
-                user_greeting="Hi! I'm your Granite Chat Assistant. What can I help you with?",
+                user_greeting="Hi! I'm your Granite-powered AI assistant—here to help with questions, research, and more. What can I do for you today?",
                 display_name="Jenna's Granite Chat",
                 tools=[
                     AgentToolInfo(name="Think", description="Reasoning and analysis for complex topics"),
