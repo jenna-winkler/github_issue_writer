@@ -21,9 +21,7 @@ from beeai_framework.backend.message import UserMessage, AssistantMessage
 from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.tools import Tool
 from beeai_framework.tools.search.duckduckgo import DuckDuckGoSearchTool
-from beeai_framework.tools.search.wikipedia import WikipediaTool
 from beeai_framework.tools.think import ThinkTool
-from beeai_framework.tools.weather import OpenMeteoTool
 
 load_dotenv()
 
@@ -86,25 +84,17 @@ def extract_citations_from_response(response_text: str) -> tuple[list[CitationMe
 
 @server.agent(
     name="jennas_granite_chat",
-    description="A friendly and knowledgeable general chat assistant powered by Granite. Features the RequirementAgent from the BeeAI Framework with dynamic citations and trajectory tracking. Built with conditional tool requirements, session memory management, and real-time citation extraction from Wikipedia, DuckDuckGo, and OpenMeteo sources. Provides transparent reasoning through trajectory visualization and maintains conversation context across sessions.",
+    description="A friendly and knowledgeable general chat assistant powered by Granite. Features the RequirementAgent from the BeeAI Framework with dynamic citations and trajectory tracking. Built with conditional tool requirements, session memory management, and real-time citation extraction from DuckDuckGo sources. Provides transparent reasoning through trajectory visualization and maintains conversation context across sessions.",
     metadata=Metadata(
         annotations=Annotations(
             beeai_ui=PlatformUIAnnotation(
                 ui_type=PlatformUIType.CHAT,
-                user_greeting="Hi! I'm your Granite-powered AI assistant—here to help with questions, research, weather, and more. What can I do for you today?",
+                user_greeting="Hi! I'm your Granite-powered AI assistant—here to help with questions, research, and more. What can I do for you today?",
                 display_name="Jenna's Granite Chat",
                 tools=[
                     AgentToolInfo(
                         name="Think",
                         description="Advanced reasoning and analysis to provide thoughtful, well-structured responses to complex questions and topics.",
-                    ),
-                    AgentToolInfo(
-                        name="Wikipedia",
-                        description="Search comprehensive information from Wikipedia's vast knowledge base for factual information, definitions, and explanations.",
-                    ),
-                    AgentToolInfo(
-                        name="Weather",
-                        description="Get current weather conditions, forecasts, and climate information for any location worldwide.",
                     ),
                     AgentToolInfo(
                         name="DuckDuckGo",
@@ -145,53 +135,79 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
     try:
         await session_memory.add(UserMessage(user_message))
 
-        OpenAIChatModel.tool_choice_support = {"none", "single", "auto"}
+        OpenAIChatModel.tool_choice_support = set()
         llm = OpenAIChatModel(
             model_id=os.getenv('LLM_MODEL', 'llama3.1'),
             base_url=os.getenv("LLM_API_BASE", "http://localhost:11434/v1"),
             api_key=os.getenv("LLM_API_KEY", "dummy"),
         )
 
+        def is_simple_greeting_or_casual(state) -> bool:
+            """Check if the user message is a simple greeting or casual conversation that doesn't need search"""
+            user_input = user_message.lower().strip()
+            simple_patterns = [
+                'hey', 'hi', 'hello', 'howdy', 'sup', 'what\'s up', 'whats up',
+                'good morning', 'good afternoon', 'good evening', 'good night',
+                'how are you', 'how\'s it going', 'hows it going', 'thanks', 'thank you',
+                'bye', 'goodbye', 'see you', 'later', 'nice', 'cool', 'awesome',
+                'ok', 'okay', 'sure', 'yes', 'no', 'maybe', 'lol', 'haha'
+            ]
+            
+            # Check for exact matches or very short casual responses
+            if user_input in simple_patterns or len(user_input.split()) <= 3:
+                for pattern in simple_patterns:
+                    if pattern in user_input:
+                        return True
+            return False
+
         agent = RequirementAgent(
             llm=llm,
             memory=session_memory,
-            tools=[ThinkTool(), WikipediaTool(), OpenMeteoTool(), DuckDuckGoSearchTool()],
+            tools=[ThinkTool(), DuckDuckGoSearchTool()],
             requirements=[
-                ConditionalRequirement(ThinkTool, force_at_step=1, force_after=Tool, consecutive_allowed=False)
+                ConditionalRequirement(ThinkTool, force_at_step=1, force_after=Tool, consecutive_allowed=False),
+                ConditionalRequirement(
+                    DuckDuckGoSearchTool, 
+                    max_invocations=1, 
+                    consecutive_allowed=False,
+                    custom_checks=[lambda state: not is_simple_greeting_or_casual(state)]
+                )
             ],
             instructions="""
-            You are a knowledgeable and helpful general-purpose assistant designed to answer questions with real-world information.
+            You are a knowledgeable and helpful general-purpose assistant designed to provide engaging conversation and answer questions with real-world information when needed.
 
-            Your goal is to analyze the user's request and provide accurate, helpful, and well-cited answers using trusted tools.
+            Your goal is to provide natural, helpful responses that match the user's intent and conversation style.
 
             ## Approach:
 
-            1. **Understand the User's Query**: Begin by interpreting what the user is really asking. Think about what background, current details, or context might be most useful.
-            2. **Use the Following Tools Strategically**:
-            - **Wikipedia**: Use this for factual background, historical context, or general knowledge (search once per distinct topic).
-            - **DuckDuckGo**: Use this to find up-to-date or real-time information (e.g. restaurants, news, hotels, product comparisons, etc.). Be specific in search queries.
-            - **OpenMeteo**: Use this for current weather conditions and forecasts (search once per location).
+            1. **Understand the User's Intent**: 
+               - For simple greetings, casual conversation, or general questions, respond naturally and conversationally
+               - For information requests requiring current data, use the DuckDuckGo search tool
+               
+            2. **When to Use Tools**:
+               - **Think Tool**: Always use this first to understand the user's request and plan your response
+               - **DuckDuckGo**: Only use when the user is asking for specific information, current events, facts, or data that requires web search
+               
+            ## Simple Conversations (No Search Needed):
+            - Greetings: "hi", "hey", "hello", "how are you"
+            - Casual responses: "thanks", "cool", "nice", "okay"
+            - General conversation and small talk
+            - Basic questions you can answer conversationally
+
+            ## When to Search:
+            - Specific factual questions requiring current information
+            - Requests for news, current events, or recent data
+            - Product comparisons, restaurant recommendations, travel info
+            - Technical information or detailed explanations
 
             ## Response Format:
 
-            - Be clear, conversational, and engaging, while maintaining a tone appropriate to the user's request (enthusiastic for travel, helpful for research, precise for facts, etc.).
-            - The response must be **entirely based on information gathered from the tools** listed above.
+            - Be natural, friendly, and conversational in tone
+            - For simple conversations, respond directly without unnecessary citations
+            - When you do use search results, include proper citations with format: `[Descriptive text](URL)`
+            - Match the user's energy and conversation style
 
-            !!!CRITICAL!!!
-
-            - Every factual statement that you've obtained from Wikipedia, OpenMeteo or DuckDuckGo in your final answer **must be backed by a citation**
-            - Use this citation format: `[Descriptive text](URL)`
-            - Don't duplicate citations, make sure you inline them to the text.
-
-            ## Examples of Citations:
-
-            - The city is steeped in culture and history — [Prague is known](https://en.wikipedia.org/wiki/Prague) for its stunning architecture and vibrant arts scene.
-            - For great dining, [this list of top-rated restaurants](https://duckduckgo.com/?q=best+restaurants+in+Rome) might help you plan.
-            - The forecast this week in Oslo calls for sunny skies and 20°C, according to [OpenMeteo](https://open-meteo.com/).
-
-            Always think before you act: What would a helpful and well-informed assistant do in this situation?
-
-            Stick strictly to tool-based information. Do not speculate or provide uncited facts.
+            Always think first about what the user really needs - sometimes a friendly, direct response is better than a researched answer.
             """,
         )
 
@@ -199,7 +215,7 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
             metadata=TrajectoryMetadata(
                 kind="trajectory",
                 key=str(uuid.uuid4()),
-                message="🛠️ Granite Chat initialized with Think, Wikipedia, Weather, and Search tools",
+                message="🛠️ Granite Chat initialized with Think and Search tools",
             )
         )
 
@@ -214,12 +230,8 @@ async def general_chat_assistant(input: list[Message], context: Context) -> Asyn
                 if last_step and last_step.tool is not None:
                     if last_step.tool.name == "final_answer":
                         response_text += last_step.input["response"]
-                    elif last_step.tool.name == "Wikipedia":
-                        yield MessagePart(metadata=TrajectoryMetadata(tool_name="Wikipedia", tool_input={"query": last_step.input["query"]}))
                     elif last_step.tool.name == "DuckDuckGo":
                         yield MessagePart(metadata=TrajectoryMetadata(tool_name="DuckDuckGo", tool_input={"query": last_step.input["query"]}))
-                    elif last_step.tool.name == "OpenMeteo":
-                        yield MessagePart(metadata=TrajectoryMetadata(tool_name="OpenMeteo", tool_input={"query": last_step.input["query"]}))
                     elif last_step.tool.name == "think":
                         yield MessagePart(metadata=TrajectoryMetadata(message=last_step.input["thoughts"], tool_name="Thought"))
 
