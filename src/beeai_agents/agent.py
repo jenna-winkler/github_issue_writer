@@ -59,7 +59,7 @@ def is_casual(msg: str) -> bool:
 
 @server.agent(
     name="jennas_granite_chat",
-    description="Friendly Granite-powered chat assistant with search, citations, and trajectory tracking.",
+    description="This is a general-purpose chat assistant prototype built with the BeeAI Framework and powered by Granite. It leverages the experimental `RequirementAgent` with `ConditionalRequirement` rules to intelligently decide when to use tools—specifically `ThinkTool` for reasoning and `DuckDuckGoSearchTool` for fetching real-time information.\n\nThe implementation uses specific conditional requirements: `ThinkTool` is forced at step 1 and after any other tool execution (with `consecutive_allowed=False`), while `DuckDuckGoSearchTool` is limited to 2 invocations maximum and includes custom checks that skip search for casual messages like \"hi\" or \"thanks.\"\n\nIt maintains conversation context using `UnconstrainedMemory` with session-based storage and implements comprehensive trajectory metadata logging throughout all interaction steps. Search results are automatically processed through regex-based citation extraction that converts markdown links `[text](URL)` into structured `CitationMetadata` objects for the platform's citation GUI support.\n\nThe agent includes error handling with try-catch blocks that provide clear, helpful messages when issues occur, and uses the `is_casual()` function to intelligently determine when tools aren't necessary for simple conversational exchanges.",
     metadata=Metadata(
         annotations=Annotations(
             beeai_ui=PlatformUIAnnotation(
@@ -67,16 +67,16 @@ def is_casual(msg: str) -> bool:
                 user_greeting="Hi! I'm your Granite-powered AI assistant—here to help with questions, research, and more. What can I do for you today?",
                 display_name="Jenna's Granite Chat",
                 tools=[
-                    AgentToolInfo(name="Think", description="Reasoning and analysis for complex topics"),
-                    AgentToolInfo(name="DuckDuckGo", description="Web search for current information")
+                    AgentToolInfo(name="Think", description="Advanced reasoning and analysis to provide thoughtful, well-structured responses to complex questions and topics."),
+                    AgentToolInfo(name="DuckDuckGo", description="Search the web for current information, news, and real-time updates on any topic.")
                 ]
             )
         ),
         author={"name": "Jenna Winkler"},
         contributors=[{"name": "Tomas Weiss"}, {"name": "Tomas Dvorak"}],
         recommended_models=["granite3.3:8b-beeai"],
-        tags=["Granite", "Chat", "Research"], framework="BeeAI", license="Apache 2.0"
-    )
+        tags=["Granite", "Chat", "Research"], framework="BeeAI", license="Apache 2.0",
+        links=[{"type": "source-code", "url": "https://github.com/jenna-winkler/granite_chat"}])
 )
 async def general_chat_assistant(input: list[Message], context: Context) -> AsyncGenerator[RunYield, RunYieldResume]:
     """General chat assistant with search and citations"""
