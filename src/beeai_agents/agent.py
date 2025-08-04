@@ -8,7 +8,6 @@ from typing import Annotated
 from beeai_framework.adapters.openai import OpenAIChatModel
 from dotenv import load_dotenv
 
-# Proper beeai_sdk imports (now working!)
 from a2a.types import AgentCapabilities, Message
 from beeai_sdk.server import Server
 from beeai_sdk.server.context import Context
@@ -32,7 +31,7 @@ memories = {}
 
 def get_memory(context: Context) -> UnconstrainedMemory:
     """Get or create session memory"""
-    # Using context_id for A2A (need to check what attribute is available)
+    
     context_id = getattr(context, "context_id", getattr(context, "session_id", "default"))
     return memories.setdefault(context_id, UnconstrainedMemory())
 
@@ -121,7 +120,6 @@ async def general_chat_assistant(
     try:
         await memory.add(UserMessage(user_msg))
         
-        # Setup LLM
         OpenAIChatModel.tool_choice_support = set()
         llm = OpenAIChatModel(
             model_id=os.getenv('LLM_MODEL', 'llama3.1'),
@@ -129,7 +127,6 @@ async def general_chat_assistant(
             api_key=os.getenv("LLM_API_KEY", "dummy")
         )
         
-        # Setup agent with conditional requirements
         agent = RequirementAgent(
             llm=llm, memory=memory,
             tools=[ThinkTool(), DuckDuckGoSearchTool()],
@@ -157,7 +154,6 @@ Use DuckDuckGo for current info, facts, and specific questions. Respond naturall
         response_text = ""
         search_results = None
         
-        # Run agent
         async for event, meta in agent.run(
             user_msg,
             execution=AgentExecutionConfig(max_iterations=20, max_retries_per_step=2, total_max_retries=5),
@@ -189,12 +185,10 @@ Use DuckDuckGo for current info, facts, and specific questions. Respond naturall
         
         await memory.add(AssistantMessage(response_text))
         
-        # Extract citations and yield response
         citations, clean_text = extract_citations(response_text, search_results)
 
         yield clean_text
         
-        # Yield structured citations using the extension
         for cit in citations:
             yield citation.citation_metadata(
                 title=cit["title"],
