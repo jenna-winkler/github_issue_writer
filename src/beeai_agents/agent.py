@@ -62,10 +62,9 @@ def is_casual(msg: str) -> bool:
     return len(words) <= 3 and any(w in casual_words for w in words)
 
 @server.agent(
-    name="jennas_granite_chat",
+    name="Jenna's Granite Chat",
     detail=AgentDetail(
         ui_type="chat",
-        display_name="Jenna's Granite Chat",
         user_greeting="Hi! I'm your Granite-powered AI assistant—here to help with questions, research, and more. What can I do for you today?",
         tools=[
             AgentDetailTool(
@@ -79,9 +78,9 @@ def is_casual(msg: str) -> bool:
         ],
         framework="BeeAI",
         author={
-            "name": "Jenna Winkler",
-            "url": "https://github.com/jenna-winkler/granite_chat"
-        }
+            "name": "Jenna Winkler"
+        },
+        source_code_url="https://github.com/jenna-winkler/granite_chat"
     ),
     capabilities=AgentCapabilities(streaming=True)
 )
