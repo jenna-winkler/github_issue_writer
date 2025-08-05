@@ -4,11 +4,12 @@ import uuid
 import traceback
 from collections.abc import AsyncGenerator
 from typing import Annotated
+from textwrap import dedent
 
 from beeai_framework.adapters.openai import OpenAIChatModel
 from dotenv import load_dotenv
 
-from a2a.types import AgentCapabilities, Message
+from a2a.types import AgentCapabilities, AgentSkill, Message
 from beeai_sdk.server import Server
 from beeai_sdk.server.context import Context
 from beeai_sdk.a2a.extensions import AgentDetail, AgentDetailTool
@@ -82,7 +83,28 @@ def is_casual(msg: str) -> bool:
         },
         source_code_url="https://github.com/jenna-winkler/granite_chat"
     ),
-    capabilities=AgentCapabilities(streaming=True)
+    capabilities=AgentCapabilities(streaming=True),
+    skills=[
+        AgentSkill(
+            id="chat",
+            name="Chat",
+            description=dedent(
+                """\
+                The agent is an AI-powered conversational system designed to process user messages, maintain context,
+                and generate intelligent responses.
+                """
+            ),
+            tags=["Chat"],
+            examples=[
+                "What are the latest advancements in AI research from 2025?",
+                "Summarize the key points from the OpenAI Dev Day 2024 announcement.",
+                "How does quantum computing differ from classical computing? Explain like I'm in high school.",
+                "What’s the difference between LLM tool use and API orchestration?",
+                "Can you help me draft an email apologizing for missing a meeting?",
+            ]
+
+        )
+    ],
 )
 async def general_chat_assistant(
     input: Message, 
