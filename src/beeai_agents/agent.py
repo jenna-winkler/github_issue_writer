@@ -1,8 +1,6 @@
 import os
 import re
-import uuid
 import traceback
-from collections.abc import AsyncGenerator
 from typing import Annotated
 from textwrap import dedent
 
@@ -37,14 +35,14 @@ def get_memory(context: Context) -> UnconstrainedMemory:
     return memories.setdefault(context_id, UnconstrainedMemory())
 
 def extract_citations(text: str, search_results=None) -> tuple[list[dict], str]:
-    """Extract citations and clean text"""
+    """Extract citations and clean text - returns citations in the correct format"""
     citations, offset = [], 0
     pattern = r"\[([^\]]+)\]\(([^)]+)\)"
     
     for match in re.finditer(pattern, text):
         content, url = match.groups()
         start = match.start() - offset
-        
+
         citations.append({
             "url": url,
             "title": url.split("/")[-1].replace("-", " ").title() or content[:50],
@@ -53,7 +51,7 @@ def extract_citations(text: str, search_results=None) -> tuple[list[dict], str]:
             "end_index": start + len(content)
         })
         offset += len(match.group(0)) - len(content)
-    
+
     return citations, re.sub(pattern, r"\1", text)
 
 def is_casual(msg: str) -> bool:
@@ -99,7 +97,7 @@ def is_casual(msg: str) -> bool:
                 "What are the latest advancements in AI research from 2025?",
                 "Summarize the key points from the OpenAI Dev Day 2024 announcement.",
                 "How does quantum computing differ from classical computing? Explain like I'm in high school.",
-                "What’s the difference between LLM tool use and API orchestration?",
+                "What's the difference between LLM tool use and API orchestration?",
                 "Can you help me draft an email apologizing for missing a meeting?",
             ]
 
@@ -210,14 +208,18 @@ Use DuckDuckGo for current info, facts, and specific questions. Respond naturall
 
         yield clean_text
         
-        for cit in citations:
-            yield citation.citation_metadata(
-                title=cit["title"],
-                url=cit["url"],
-                description=cit["description"],
-                start_index=cit["start_index"],
-                end_index=cit["end_index"]
-            )
+        if citations:
+            citation_objects = []
+            for cit in citations:
+                citation_objects.append({
+                    "url": cit["url"],
+                    "title": cit["title"],
+                    "description": cit["description"],
+                    "start_index": cit["start_index"],
+                    "end_index": cit["end_index"]
+                })
+            
+            yield citation.citation_metadata(citations=citation_objects)
             
         yield trajectory.trajectory_metadata(
             title="Completion",
