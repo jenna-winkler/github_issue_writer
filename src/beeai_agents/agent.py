@@ -9,11 +9,19 @@ from dotenv import load_dotenv
 
 from a2a.types import AgentCapabilities, AgentSkill, Message
 from beeai_sdk.server import Server
-from beeai_sdk.server.context import Context
-from beeai_sdk.a2a.extensions import AgentDetail, AgentDetailTool
-from beeai_sdk.a2a.extensions.ui.citation import CitationExtensionServer, CitationExtensionSpec
-from beeai_sdk.a2a.extensions.ui.trajectory import TrajectoryExtensionServer, TrajectoryExtensionSpec
-
+from beeai_sdk.server.context import RunContext
+from beeai_sdk.a2a.extensions import (
+    AgentDetail,
+    AgentDetailTool,
+    CitationExtensionServer,
+    CitationExtensionSpec,
+    TrajectoryExtensionServer,
+    TrajectoryExtensionSpec,
+    LLMServiceExtensionServer,
+    LLMServiceExtensionSpec,
+)
+from beeai_sdk.a2a.types import AgentMessage, AgentArtifact
+from beeai_sdk.a2a.extensions.services.platform import PlatformApiExtensionServer, PlatformApiExtensionSpec
 from beeai_framework.agents.experimental import RequirementAgent
 from beeai_framework.agents.experimental.requirements.conditional import ConditionalRequirement
 from beeai_framework.agents.types import AgentExecutionConfig
@@ -28,7 +36,7 @@ load_dotenv()
 server = Server()
 memories = {}
 
-def get_memory(context: Context) -> UnconstrainedMemory:
+def get_memory(context: RunContext) -> UnconstrainedMemory:  # Changed Context to RunContext
     """Get or create session memory"""
     
     context_id = getattr(context, "context_id", getattr(context, "session_id", "default"))
@@ -63,8 +71,11 @@ def is_casual(msg: str) -> bool:
 @server.agent(
     name="Jenna's Granite Chat",
     detail=AgentDetail(
-        ui_type="chat",
-        user_greeting="Hi! I'm your Granite-powered AI assistant—here to help with questions, research, and more. What can I do for you today?",
+        interaction_mode="multi-turn",
+        user_greeting="Hi! I'm your Granite-powered AI assistant. How can I help?",
+        version="0.0.10",
+        default_input_modes=["text", "text/plain"],
+        default_output_modes=["text", "text/plain"],
         tools=[
             AgentDetailTool(
                 name="Think", 
@@ -106,7 +117,7 @@ def is_casual(msg: str) -> bool:
 )
 async def general_chat_assistant(
     input: Message, 
-    context: Context,
+    context: RunContext,  # Changed Context to RunContext
     citation: Annotated[CitationExtensionServer, CitationExtensionSpec()],
     trajectory: Annotated[TrajectoryExtensionServer, TrajectoryExtensionSpec()]
 ):
