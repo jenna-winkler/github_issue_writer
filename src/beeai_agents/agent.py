@@ -199,23 +199,13 @@ async def general_chat_assistant(
             llm_config = llm.data.llm_fulfillments.get("default")
             
             if llm_config:
-                yield trajectory.trajectory_metadata(
-                    title="LLM Configuration",
-                    content=f"🤖 Using platform LLM: {llm_config.api_model}"
-                )
-                
                 OpenAIChatModel.tool_choice_support = set()
                 llm_client = OpenAIChatModel(
                     model_id=llm_config.api_model,
                     base_url=llm_config.api_base,
                     api_key=llm_config.api_key
                 )
-            else:
-                yield trajectory.trajectory_metadata(
-                    title="LLM Configuration",
-                    content="⚠️ Platform LLM config not available, using fallback"
-                )
-                
+            else:                
                 OpenAIChatModel.tool_choice_support = set()
                 llm_client = OpenAIChatModel(
                     model_id=os.getenv('LLM_MODEL', 'llama3.1'),
@@ -317,7 +307,7 @@ When files are uploaded, analyze and summarize their content. For data files (CS
             title="Completion",
             content="✅ Response completed"
         )
-        
+
     except Exception as e:
         print(f"❌ Error: {e}\n{traceback.format_exc()}")
         yield trajectory.trajectory_metadata(
