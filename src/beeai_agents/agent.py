@@ -5,6 +5,7 @@ from typing import Annotated
 from textwrap import dedent
 
 from beeai_framework.adapters.openai import OpenAIChatModel
+from beeai_framework.backend.types import ChatModelParameters
 from dotenv import load_dotenv
 
 from a2a.types import AgentSkill, Message
@@ -194,35 +195,21 @@ async def general_chat_assistant(
     try:
         await memory.add(UserMessage(full_message))
         
-        if llm:
-            llm_config = llm.data.llm_fulfillments.get("default")
+        if not llm or not llm.data:
+            raise ValueError("LLM service extension is required but not available")
             
-            if llm_config:
-                OpenAIChatModel.tool_choice_support = set()
-                llm_client = OpenAIChatModel(
-                    model_id=llm_config.api_model,
-                    base_url=llm_config.api_base,
-                    api_key=llm_config.api_key
-                )
-            else:                
-                OpenAIChatModel.tool_choice_support = set()
-                llm_client = OpenAIChatModel(
-                    model_id=os.getenv('LLM_MODEL', 'llama3.1'),
-                    base_url=os.getenv("LLM_API_BASE", "http://localhost:11434/v1"),
-                    api_key=os.getenv("LLM_API_KEY", "dummy")
-                )
-        else:
-            yield trajectory.trajectory_metadata(
-                title="LLM Configuration",
-                content="⚠️ LLM Service Extension not available, using environment config"
-            )
-            
-            OpenAIChatModel.tool_choice_support = set()
-            llm_client = OpenAIChatModel(
-                model_id=os.getenv('LLM_MODEL', 'llama3.1'),
-                base_url=os.getenv("LLM_API_BASE", "http://localhost:11434/v1"),
-                api_key=os.getenv("LLM_API_KEY", "dummy")
-            )
+        llm_config = llm.data.llm_fulfillments.get("default")
+        
+        if not llm_config:
+            raise ValueError("LLM service extension provided but no fulfillment available")
+        
+        llm_client = OpenAIChatModel(
+            model_id=llm_config.api_model,
+            base_url=llm_config.api_base,
+            api_key=llm_config.api_key,
+            parameters=ChatModelParameters(temperature=0.0),
+            tool_choice_support=set(),
+        )
         
         agent = RequirementAgent(
             llm=llm_client, 
@@ -290,17 +277,7 @@ When files are uploaded, analyze and summarize their content. For data files (CS
         yield clean_text
         
         if citations:
-            citation_objects = []
-            for cit in citations:
-                citation_objects.append({
-                    "url": cit["url"],
-                    "title": cit["title"],
-                    "description": cit["description"],
-                    "start_index": cit["start_index"],
-                    "end_index": cit["end_index"]
-                })
-            
-            yield citation.citation_metadata(citations=citation_objects)
+            yield citation.citation_metadata(citations=citations)
             
         yield trajectory.trajectory_metadata(
             title="Completion",
