@@ -1,19 +1,20 @@
 # Jenna's Granite Chat 🤖💬🧪
 
-This is a research prototype of a general-purpose chat assistant built with the [BeeAI Framework](https://framework.beeai.dev/). It uses the experimental `RequirementAgent` pattern and is powered by a local or remote LLM configured via environment variables.
+This is a research prototype of a general-purpose chat assistant built with the [BeeAI Framework](https://framework.beeai.dev/) and [BeeAI SDK](docs.beeai.dev/). It demonstrates advanced tool orchestration with the experimental `RequirementAgent` pattern, platform extensions, and support for both chat and file analysis.
 
-The assistant is designed for interactive use with tool-based reasoning and retrieval, session memory, and support for platform extensions like citation and trajectory tracking.
+The assistant runs as a server and supports interactive use with tool-based reasoning, retrieval, memory, structured metadata, and UI integrations.
 
 ## Capabilities
 
-* **Streaming chat** with memory
-* **Tool invocation** based on conditional requirements:
-  * `ThinkTool` (required at step 1 and after any tool)
-  * `DuckDuckGoSearchTool` (max 2 invocations, skipped for casual messages)
-* **Session-based memory** using `UnconstrainedMemory`
-* **Citation extraction** via regex from markdown-style links
-* **Structured trajectory metadata** for UI feedback
-* **Basic error handling** with visible logs and UI feedback
+- Streaming multi-turn chat with persistent session memory
+- Tool orchestration via `RequirementAgent` with conditional rules:
+    - `ThinkTool` — always invoked at step 1 and after any tool
+    - `DuckDuckGoSearchTool` — max 2 invocations per query, skipped for casual/greeting messages
+    - File Processing — supports PDF, CSV, JSON, and plain text uploads
+- Session memory with `UnconstrainedMemory`
+- Citation extraction from markdown-style links into structured objects
+- Trajectory tracking — logs each reasoning step, tool call, and output for UI replay/debugging
+- Basic error handling with visible logs and user-facing error messages
 
 ## Running the Agent
 
@@ -23,31 +24,35 @@ To start the server:
 uv run server
 ```
 
-The server will start on the configured host and port.
+The server runs on the configured HOST and PORT environment variables (defaults: 127.0.0.1:8000).
 
-## Functions
+## Key Functions & Components
 
-* `general_chat_assistant(...)`: Main entrypoint for the agent
-* `RequirementAgent(...)`: Handles tool orchestration and memory
-* `extract_citations(...)`: Extracts markdown-style citations into structured objects
-* `is_casual(...)`: Lightweight filter to bypass tool use for simple greetings
-* `run()`: Starts the agent server
+- `general_chat_assistant(...)`: Main async agent entrypoint (handles chat, tools, memory, file analysis)
+- `RequirementAgent(...)`: Orchestrates tools with ConditionalRequirement rules
+- `extract_citations(...)`: Converts markdown [text](url) links into structured citation objects
+- `is_casual(...)`: Detects short casual messages to skip tool invocation
+- `get_memory(...)`: Provides per-session UnconstrainedMemory
+- `run()`: Starts the BeeAI server
 
-## UI Extensions
+## Extensions
 
-* **CitationExtensionServer**: Enables structured citations for rendered links
-* **TrajectoryExtensionServer**: Tracks each step of reasoning and tool usage for UI replay/debugging
+- `CitationExtensionServer` — renders citations from [text](url) into structured link previews
+- `TrajectoryExtensionServer` — captures reasoning/tool usage for UI replay and debugging
+- `LLMServiceExtensionServer` — manages Granite/other LLM fulfillment via BeeAI platform
 
-## Sample Input/Output
+## Example
 
 **Input**:
 
 > What are the latest advancements in AI research from 2025?
 
-**Output**:
+**Result**:
 
-* Calls `ThinkTool`
-* Calls `DuckDuckGoSearchTool` with relevant query
-* Returns final response with `[label](url)` markdown
-* Citations extracted and rendered in UI
-* All steps logged via trajectory extension
+- Invokes `ThinkTool` for reasoning
+- Calls `DuckDuckGoSearchTool` with a relevant query (unless skipped for casual)
+- Returns a final response with proper [label](url) citations
+- Extracted citations sent to UI for rendering
+- All steps logged via trajectory extension
+- Conversation context persisted across turns
+- If a file is uploaded, analyzes and summarizes its contents
