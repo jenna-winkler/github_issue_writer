@@ -19,7 +19,7 @@ jobs:
     - name: Set up Python environment
       uses: actions/setup-python@v4
       with:
-        python-version: '3.12'  # Fixed Python version for BeeAI SDK compatibility
+        python-version: '3.12'
 
     - name: Install BeeAI CLI
       run: pip install beeai-cli
@@ -40,4 +40,4 @@ jobs:
           --tag ghcr.io/jenna-winkler/granite_chat/granite_chat_agent:v0.0.10 \
           --no-import \
           --multi-platform \
-          --push
+          true
