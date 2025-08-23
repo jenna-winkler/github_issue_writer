@@ -1,6 +1,6 @@
 # Jenna's Granite Chat 🤖💬🧪
 
-This is a research prototype of a general-purpose chat assistant built with the [BeeAI Framework](https://framework.beeai.dev/) and [BeeAI SDK](docs.beeai.dev/). It demonstrates advanced tool orchestration with the experimental `RequirementAgent` pattern, platform extensions, and support for both chat and file analysis.
+This is a research prototype of a general-purpose chat assistant built with the [BeeAI Framework](https://framework.beeai.dev/) and [BeeAI SDK](https://docs.beeai.dev/). It demonstrates advanced tool orchestration with the experimental `RequirementAgent` pattern, platform extensions, and support for both chat and file analysis.
 
 The assistant runs as a server and supports interactive use with tool-based reasoning, retrieval, memory, structured metadata, and UI integrations.
 
