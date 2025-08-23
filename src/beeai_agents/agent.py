@@ -1,18 +1,17 @@
 import os
 import re
-import uuid
 import traceback
-from collections.abc import AsyncGenerator
+from typing import Annotated
+from textwrap import dedent
 
 from beeai_framework.adapters.openai import OpenAIChatModel
+from beeai_framework.backend.types import ChatModelParameters
 from dotenv import load_dotenv
 
-from acp_sdk import Annotations, MessagePart, Metadata
-from acp_sdk.models import Message
-from acp_sdk.models.models import CitationMetadata, TrajectoryMetadata
-from acp_sdk.models.platform import AgentToolInfo, PlatformUIAnnotation, PlatformUIType
-from acp_sdk.server import Context, RunYield, RunYieldResume, Server
-
+from a2a.types import AgentSkill, Message
+from beeai_sdk.server import Server
+from beeai_sdk.server.context import RunContext
+from beeai_sdk.a2a.extensions import AgentDetail, AgentDetailTool, CitationExtensionServer, CitationExtensionSpec, TrajectoryExtensionServer, TrajectoryExtensionSpec, LLMServiceExtensionServer, LLMServiceExtensionSpec
 from beeai_framework.agents.experimental import RequirementAgent
 from beeai_framework.agents.experimental.requirements.conditional import ConditionalRequirement
 from beeai_framework.agents.types import AgentExecutionConfig
@@ -21,34 +20,37 @@ from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.tools import Tool
 from beeai_framework.tools.search.duckduckgo import DuckDuckGoSearchTool
 from beeai_framework.tools.think import ThinkTool
+from beeai_sdk.util.file import load_file
 
 load_dotenv()
 
 server = Server()
 memories = {}
 
-def get_memory(context: Context) -> UnconstrainedMemory:
+def get_memory(context: RunContext) -> UnconstrainedMemory:
     """Get or create session memory"""
-    session_id = getattr(context, "session_id", "default")
-    return memories.setdefault(session_id, UnconstrainedMemory())
+    
+    context_id = getattr(context, "context_id", getattr(context, "session_id", "default"))
+    return memories.setdefault(context_id, UnconstrainedMemory())
 
-def extract_citations(text: str, search_results=None) -> tuple[list[CitationMetadata], str]:
-    """Extract citations and clean text"""
+def extract_citations(text: str, search_results=None) -> tuple[list[dict], str]:
+    """Extract citations and clean text - returns citations in the correct format"""
     citations, offset = [], 0
     pattern = r"\[([^\]]+)\]\(([^)]+)\)"
     
     for match in re.finditer(pattern, text):
         content, url = match.groups()
         start = match.start() - offset
-        
-        citations.append(CitationMetadata(
-            kind="citation", url=url,
-            title=url.split("/")[-1].replace("-", " ").title() or content[:50],
-            description=content[:100] + ("..." if len(content) > 100 else ""),
-            start_index=start, end_index=start + len(content)
-        ))
+
+        citations.append({
+            "url": url,
+            "title": url.split("/")[-1].replace("-", " ").title() or content[:50],
+            "description": content[:100] + ("..." if len(content) > 100 else ""),
+            "start_index": start, 
+            "end_index": start + len(content)
+        })
         offset += len(match.group(0)) - len(content)
-    
+
     return citations, re.sub(pattern, r"\1", text)
 
 def is_casual(msg: str) -> bool:
@@ -58,51 +60,160 @@ def is_casual(msg: str) -> bool:
     return len(words) <= 3 and any(w in casual_words for w in words)
 
 @server.agent(
-    name="jennas_granite_chat",
-    description="This is a general-purpose chat assistant prototype built with the BeeAI Framework and powered by Granite. It leverages the experimental `RequirementAgent` with `ConditionalRequirement` rules to intelligently decide when to use tools—specifically `ThinkTool` for reasoning and `DuckDuckGoSearchTool` for fetching real-time information.\n\nThe implementation uses specific conditional requirements: `ThinkTool` is forced at step 1 and after any other tool execution (with `consecutive_allowed=False`), while `DuckDuckGoSearchTool` is limited to 2 invocations maximum and includes custom checks that skip search for casual messages like \"hi\" or \"thanks.\"\n\nIt maintains conversation context using `UnconstrainedMemory` with session-based storage and implements comprehensive trajectory metadata logging throughout all interaction steps. Search results are automatically processed through regex-based citation extraction that converts markdown links `[text](URL)` into structured `CitationMetadata` objects for the platform's citation GUI support.\n\nThe agent includes error handling with try-catch blocks that provide clear, helpful messages when issues occur, and uses the `is_casual()` function to intelligently determine when tools aren't necessary for simple conversational exchanges.",
-    metadata=Metadata(
-        annotations=Annotations(
-            beeai_ui=PlatformUIAnnotation(
-                ui_type=PlatformUIType.CHAT,
-                user_greeting="Hi! I'm your Granite-powered AI assistant—here to help with questions, research, and more. What can I do for you today?",
-                display_name="Jenna's Granite Chat",
-                tools=[
-                    AgentToolInfo(name="Think", description="Advanced reasoning and analysis to provide thoughtful, well-structured responses to complex questions and topics."),
-                    AgentToolInfo(name="DuckDuckGo", description="Search the web for current information, news, and real-time updates on any topic.")
-                ]
+    name="Jenna's Granite Chat",
+    default_input_modes=["text", "text/plain", "application/pdf", "text/csv", "application/json"],
+    default_output_modes=["text", "text/plain"],
+    detail=AgentDetail(
+        interaction_mode="multi-turn",
+        user_greeting="Hi! I'm your Granite-powered AI assistant. How can I help?",
+        version="0.0.10",
+        tools=[
+            AgentDetailTool(
+                name="Think", 
+                description="Advanced reasoning and analysis to provide thoughtful, well-structured responses to complex questions and topics."
+            ),
+            AgentDetailTool(
+                name="DuckDuckGo", 
+                description="Search the web for current information, news, and real-time updates on any topic."
+            ),
+            AgentDetailTool(
+                name="File Processing", 
+                description="Read and analyze uploaded files including PDFs, text files, CSV data, and JSON documents."
             )
-        ),
-        author={"name": "Jenna Winkler"},
-        contributors=[{"name": "Tomas Weiss"}, {"name": "Tomas Dvorak"}],
-        recommended_models=["granite3.3:8b-beeai"],
-        tags=["Granite", "Chat", "Research"], framework="BeeAI", license="Apache 2.0",
-        links=[{"type": "source-code", "url": "https://github.com/jenna-winkler/granite_chat"}])
+        ],
+        framework="BeeAI",
+        author={
+            "name": "Jenna Winkler"
+        },
+        source_code_url="https://github.com/jenna-winkler/granite_chat"
+    ),
+    skills=[
+        AgentSkill(
+            id="chat",
+            name="Chat",
+            description=dedent(
+                """\
+                The agent is an AI-powered conversational system designed to process user messages, maintain context,
+                generate intelligent responses, and analyze uploaded files.
+                """
+            ),
+            tags=["Chat", "Files"],
+            examples=[
+                "What are the latest advancements in AI research from 2025?",
+                "What's the difference between LLM tool use and API orchestration?",
+                "Can you help me draft an email apologizing for missing a meeting?",
+                "Analyze this CSV file and tell me the key trends.",
+                "Summarize the main points from this PDF document.",
+            ]
+
+        )
+    ],
 )
-async def general_chat_assistant(input: list[Message], context: Context) -> AsyncGenerator[RunYield, RunYieldResume]:
-    """General chat assistant with search and citations"""
+async def general_chat_assistant(
+    input: Message, 
+    context: RunContext,
+    citation: Annotated[CitationExtensionServer, CitationExtensionSpec()],
+    trajectory: Annotated[TrajectoryExtensionServer, TrajectoryExtensionSpec()],
+    llm: Annotated[
+        LLMServiceExtensionServer, 
+        LLMServiceExtensionSpec.single_demand(
+            suggested=("ibm/granite-3-3-8b-instruct", "llama3.1", "gpt-4o-mini")
+        )
+    ]
+):
+    """
+    This is a general-purpose chat assistant prototype built with the BeeAI Framework and powered by Granite. It demonstrates advanced capabilities of both the BeeAI Framework and BeeAI SDK.
+
+    ### BeeAI Framework Features
+
+    - **RequirementAgent:** An experimental agent that selects and executes tools based on defined rules instead of relying solely on LLM decisions. ConditionalRequirement rules determine when and how each tool is used.
+    - **ThinkTool:** Provides advanced reasoning and structured analysis.
+    - **DuckDuckGoSearchTool:** Performs real-time web searches with invocation limits and casual message detection.
+    - **Memory Management:** Uses `UnconstrainedMemory` to maintain full conversation context with session persistence.
+    - **Error Handling:** Try-catch blocks provide clear messages; `is_casual()` skips unnecessary tool calls for simple messages.
+
+    ### BeeAI SDK Features
+
+    - **GUI Configuration:** Configures agent details including interaction mode, user greeting, tool descriptions, and metadata through AgentDetail.
+    - **TrajectoryMetadata:** Logs agent decisions and tool execution for transparency.
+    - **CitationMetadata:** Converts markdown links into structured objects for GUI display.
+    - **File Processing:** Supports text, PDF, CSV, and JSON files.
+    - **LLM Service Extension:** Uses platform-managed LLMs for consistent model access.
+    """
+
+    user_msg = ""
+    file_content = ""
+    uploaded_files = []
     
-    user_msg = input[-1].parts[0].content if input else "Hello"
+    for part in input.parts:
+        part_root = part.root
+        if part_root.kind == "text":
+            user_msg = part_root.text
+        elif part_root.kind == "file":
+            uploaded_files.append(part_root)
+    
+    if not user_msg:
+        user_msg = "Hello"
+    
     memory = get_memory(context)
     
-    yield MessagePart(metadata=TrajectoryMetadata(
-        kind="trajectory", key=str(uuid.uuid4()), 
-        message=f"💬 Processing: '{user_msg}'"
-    ))
-    
-    try:
-        await memory.add(UserMessage(user_msg))
-        
-        # Setup LLM
-        OpenAIChatModel.tool_choice_support = set()
-        llm = OpenAIChatModel(
-            model_id=os.getenv('LLM_MODEL', 'llama3.1'),
-            base_url=os.getenv("LLM_API_BASE", "http://localhost:11434/v1"),
-            api_key=os.getenv("LLM_API_KEY", "dummy")
+    if uploaded_files:
+        yield trajectory.trajectory_metadata(
+            title="Processing Files",
+            content=f"📁 Processing {len(uploaded_files)} uploaded file(s)"
         )
         
-        # Setup agent with conditional requirements
+        for file_part in uploaded_files:
+            try:
+                async with load_file(file_part) as loaded_content:
+                    filename = file_part.file.name
+                    content_type = file_part.file.mime_type
+                    
+                    content = loaded_content.text
+                    file_content += f"\n\n--- File: {filename} ({content_type}) ---\n{content}\n"
+                    
+                    yield trajectory.trajectory_metadata(
+                        title="File Loaded",
+                        content=f"📄 Loaded: {filename} ({len(content)} characters)"
+                    )
+                    
+            except Exception as e:
+                yield trajectory.trajectory_metadata(
+                    title="File Error",
+                    content=f"❌ Error loading {file_part.file.name}: {e}"
+                )
+    
+    full_message = user_msg
+    if file_content:
+        full_message += f"\n\nUploaded file content:{file_content}"
+    
+    yield trajectory.trajectory_metadata(
+        title="Processing Message",
+        content=f"💬 Processing: '{user_msg}'" + (f" with {len(uploaded_files)} file(s)" if uploaded_files else "")
+    )
+    
+    try:
+        await memory.add(UserMessage(full_message))
+        
+        if not llm or not llm.data:
+            raise ValueError("LLM service extension is required but not available")
+            
+        llm_config = llm.data.llm_fulfillments.get("default")
+        
+        if not llm_config:
+            raise ValueError("LLM service extension provided but no fulfillment available")
+        
+        llm_client = OpenAIChatModel(
+            model_id=llm_config.api_model,
+            base_url=llm_config.api_base,
+            api_key=llm_config.api_key,
+            parameters=ChatModelParameters(temperature=0.0),
+            tool_choice_support=set(),
+        )
+        
         agent = RequirementAgent(
-            llm=llm, memory=memory,
+            llm=llm_client, 
+            memory=memory,
             tools=[ThinkTool(), DuckDuckGoSearchTool()],
             requirements=[
                 ConditionalRequirement(ThinkTool, force_at_step=1, force_after=Tool, consecutive_allowed=False),
@@ -117,20 +228,21 @@ Examples:
 - [OpenAI releases GPT-5](https://example.com/gpt5)
 - [AI adoption increases 67%](https://example.com/ai-study)
 
-Use DuckDuckGo for current info, facts, and specific questions. Respond naturally to casual greetings without search."""
+Use DuckDuckGo for current info, facts, and specific questions. Respond naturally to casual greetings without search.
+
+When files are uploaded, analyze and summarize their content. For data files (CSV/JSON), highlight key insights and patterns."""
         )
         
-        yield MessagePart(metadata=TrajectoryMetadata(
-            kind="trajectory", key=str(uuid.uuid4()),
-            message="🛠️ Granite Chat ready with Think and Search tools"
-        ))
+        yield trajectory.trajectory_metadata(
+            title="Agent Ready",
+            content="🛠️ Granite Chat ready with Think, Search tools" + (" and file processing" if uploaded_files else "")
+        )
         
         response_text = ""
         search_results = None
         
-        # Run agent
         async for event, meta in agent.run(
-            user_msg,
+            full_message,
             execution=AgentExecutionConfig(max_iterations=20, max_retries_per_step=2, total_max_retries=5),
             expected_output="Markdown format with proper [text](URL) citations for search results."
         ):
@@ -148,36 +260,37 @@ Use DuckDuckGo for current info, facts, and specific questions. Respond naturall
                     query = step.input.get("query", "Unknown")
                     count = len(search_results) if search_results else 0
                     
-                    yield MessagePart(metadata=TrajectoryMetadata(
-                        tool_name="DuckDuckGo",
-                        tool_input={"query": query, "results_count": count},
-                        message=f"🔍 Searched: '{query}' → {count} results"
-                    ))
+                    yield trajectory.trajectory_metadata(
+                        title="DuckDuckGo Search",
+                        content=f"🔍 Searched: '{query}' → {count} results"
+                    )
                 elif tool_name == "think":
-                    yield MessagePart(metadata=TrajectoryMetadata(
-                        message=step.input["thoughts"], tool_name="Thought"
-                    ))
+                    yield trajectory.trajectory_metadata(
+                        title="Thought",
+                        content=step.input["thoughts"]
+                    )
         
         await memory.add(AssistantMessage(response_text))
         
-        # Extract citations and yield response
         citations, clean_text = extract_citations(response_text, search_results)
+
+        yield clean_text
         
-        yield MessagePart(content=clean_text)
-        for citation in citations:
-            yield MessagePart(metadata=citation)
+        if citations:
+            yield citation.citation_metadata(citations=citations)
             
-        yield MessagePart(metadata=TrajectoryMetadata(
-            kind="trajectory", key=str(uuid.uuid4()),
-            message="✅ Response completed"
-        ))
-        
+        yield trajectory.trajectory_metadata(
+            title="Completion",
+            content="✅ Response completed"
+        )
+
     except Exception as e:
         print(f"❌ Error: {e}\n{traceback.format_exc()}")
-        yield MessagePart(metadata=TrajectoryMetadata(
-            kind="trajectory", key=str(uuid.uuid4()), message=f"❌ Error: {e}"
-        ))
-        yield MessagePart(content=f"🚨 Error processing request: {e}")
+        yield trajectory.trajectory_metadata(
+            title="Error",
+            content=f"❌ Error: {e}"
+        )
+        yield f"🚨 Error processing request: {e}"
 
 def run():
     """Start the server"""
