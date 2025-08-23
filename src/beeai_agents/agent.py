@@ -7,7 +7,7 @@ from textwrap import dedent
 from beeai_framework.adapters.openai import OpenAIChatModel
 from dotenv import load_dotenv
 
-from a2a.types import AgentCapabilities, AgentSkill, Message
+from a2a.types import AgentSkill, Message
 from beeai_sdk.server import Server
 from beeai_sdk.server.context import RunContext
 from beeai_sdk.a2a.extensions import AgentDetail, AgentDetailTool, CitationExtensionServer, CitationExtensionSpec, TrajectoryExtensionServer, TrajectoryExtensionSpec, LLMServiceExtensionServer, LLMServiceExtensionSpec
@@ -86,7 +86,6 @@ def is_casual(msg: str) -> bool:
         },
         source_code_url="https://github.com/jenna-winkler/granite_chat"
     ),
-    capabilities=AgentCapabilities(streaming=True),
     skills=[
         AgentSkill(
             id="chat",
