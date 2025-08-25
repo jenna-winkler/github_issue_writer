@@ -192,7 +192,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "beeai-framework", specifier = ">=0.1.34" },
-    { name = "beeai-sdk", specifier = "==0.3.0rc8" },
+    { name = "beeai-sdk", specifier = ">=0.3.0rc8" },
     { name = "ddgs", specifier = ">=9.4.3,<10.0.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
