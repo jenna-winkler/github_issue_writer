@@ -1,9 +1,9 @@
 [project]
-name = "beeai_agents"
+name = "beeai-agents"
 version = "0.1.1"
-description = "Add your description here"
+description = "Granite-powered AI chat assistant with advanced tool orchestration"
 readme = "README.md"
-authors = [{ name = "IBM Corp." }]
+authors = [{ name = "Jenna Winkler" }]
 requires-python = ">=3.11,<4.0"
 dependencies = [
     "pyyaml>=6.0.2",
@@ -13,9 +13,6 @@ dependencies = [
     "beeai-framework>=0.1.42",
     "beeai-sdk==0.3.2",
 ]
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/beeai_agents"]
 
 [tool.ruff]
 line-length = 120
