@@ -66,7 +66,7 @@ def is_casual(msg: str) -> bool:
     detail=AgentDetail(
         interaction_mode="multi-turn",
         user_greeting="Hi! I'm your Granite-powered AI assistant. How can I help?",
-        version="0.0.10",
+        version="0.0.11",
         tools=[
             AgentDetailTool(
                 name="Think", 
