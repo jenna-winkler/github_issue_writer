@@ -1,4 +1,4 @@
-FROM python:3.13-slim-bookworm
+FROM python:3.13-bookworm
 COPY --from=ghcr.io/astral-sh/uv:0.7.15 /uv /bin/
 
 ENV UV_LINK_MODE=copy \
