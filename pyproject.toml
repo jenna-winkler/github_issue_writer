@@ -1,9 +1,9 @@
 [project]
 name = "beeai-agents"
 version = "0.1.1"
-description = "Granite-powered AI chat assistant with advanced tool orchestration"
+description = "Add your description here"
 readme = "README.md"
-authors = [{ name = "Jenna Winkler" }]
+authors = [{ name = "IBM Corp." }]
 requires-python = ">=3.11,<4.0"
 dependencies = [
     "pyyaml>=6.0.2",
