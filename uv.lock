@@ -175,29 +175,6 @@ wheels = [
 ]
 
 [[package]]
-name = "beeai-agents"
-version = "0.1.1"
-source = { editable = "." }
-dependencies = [
-    { name = "beeai-framework" },
-    { name = "beeai-sdk" },
-    { name = "ddgs" },
-    { name = "httpx" },
-    { name = "python-dotenv" },
-    { name = "pyyaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "beeai-framework", specifier = ">=0.1.42" },
-    { name = "beeai-sdk", specifier = "==0.3.2" },
-    { name = "ddgs", specifier = ">=9.4.3,<10.0.0" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "python-dotenv", specifier = ">=1.1.1" },
-    { name = "pyyaml", specifier = ">=6.0.2" },
-]
-
-[[package]]
 name = "beeai-framework"
 version = "0.1.42"
 source = { registry = "https://pypi.org/simple" }
@@ -538,6 +515,29 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/39/24/33db22342cf4a2ea27c9955e6713140fedd51e8b141b5ce5260897020f1a/googleapis_common_protos-1.70.0.tar.gz", hash = "sha256:0e1b44e0ea153e6594f9f394fef15193a68aaaea2d843f83e2742717ca753257", size = 145903, upload-time = "2025-04-14T10:17:02.924Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/86/f1/62a193f0227cf15a920390abe675f386dec35f7ae3ffe6da582d3ade42c7/googleapis_common_protos-1.70.0-py3-none-any.whl", hash = "sha256:b8bfcca8c25a2bb253e0e0b0adaf8c00773e5e6af6fd92397576680b807e0fd8", size = 294530, upload-time = "2025-04-14T10:17:01.271Z" },
+]
+
+[[package]]
+name = "granite-chat-agent"
+version = "0.0.11"
+source = { editable = "." }
+dependencies = [
+    { name = "beeai-framework" },
+    { name = "beeai-sdk" },
+    { name = "ddgs" },
+    { name = "httpx" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "beeai-framework", specifier = ">=0.1.42" },
+    { name = "beeai-sdk", specifier = "==0.3.2" },
+    { name = "ddgs", specifier = ">=9.4.3,<10.0.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "python-dotenv", specifier = ">=1.1.1" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
 ]
 
 [[package]]
