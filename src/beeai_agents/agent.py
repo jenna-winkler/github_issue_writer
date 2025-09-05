@@ -1,115 +1,117 @@
 import os
-import re
-import traceback
 from typing import Annotated
-from textwrap import dedent
 
 from beeai_framework.adapters.openai import OpenAIChatModel
 from beeai_framework.backend.types import ChatModelParameters
 from dotenv import load_dotenv
 
+import a2a.types
 from a2a.types import AgentSkill, Message
 from beeai_sdk.server import Server
 from beeai_sdk.server.context import RunContext
-from beeai_sdk.a2a.extensions import AgentDetail, AgentDetailTool, CitationExtensionServer, CitationExtensionSpec, TrajectoryExtensionServer, TrajectoryExtensionSpec, LLMServiceExtensionServer, LLMServiceExtensionSpec
+from beeai_sdk.a2a.extensions import AgentDetailExtensionSpec, AgentDetail, CitationExtensionServer, CitationExtensionSpec, TrajectoryExtensionServer, TrajectoryExtensionSpec, LLMServiceExtensionServer, LLMServiceExtensionSpec
+from beeai_sdk.a2a.extensions.ui.form import TextField, MultiSelectField, OptionItem, FormExtensionServer, FormExtensionSpec, FormRender
 from beeai_framework.agents.experimental import RequirementAgent
 from beeai_framework.agents.experimental.requirements.conditional import ConditionalRequirement
 from beeai_framework.agents.types import AgentExecutionConfig
-from beeai_framework.backend.message import UserMessage, AssistantMessage
+from beeai_framework.backend.message import UserMessage
 from beeai_framework.memory import UnconstrainedMemory
-from beeai_framework.tools import Tool
-from beeai_framework.tools.search.duckduckgo import DuckDuckGoSearchTool
 from beeai_framework.tools.think import ThinkTool
-from beeai_sdk.util.file import load_file
 
 load_dotenv()
 
 server = Server()
-memories = {}
 
-def get_memory(context: RunContext) -> UnconstrainedMemory:
-    """Get or create session memory"""
-    
-    context_id = getattr(context, "context_id", getattr(context, "session_id", "default"))
-    return memories.setdefault(context_id, UnconstrainedMemory())
+form_render = FormRender(
+    id="github_issue_form",
+    title="Create a GitHub Issue",
+    description="Fill out the details below to generate a well-structured GitHub issue",
+    columns=1,
+    submit_label="Generate Issue",
+    fields=[
+        TextField(
+            type="text",
+            id="title",
+            label="Issue Title",
+            placeholder="Brief, descriptive title for the issue",
+            required=True,
+            col_span=1
+        ),
+        MultiSelectField(
+            type="multiselect",
+            id="issue_type",
+            label="Issue Type",
+            required=True,
+            col_span=1,
+            options=[
+                OptionItem(id="bug", label="Bug Report"),
+                OptionItem(id="feature", label="Feature Request"),
+                OptionItem(id="enhancement", label="Enhancement"),
+                OptionItem(id="documentation", label="Documentation")
+            ]
+        ),
+        TextField(
+            type="text",
+            id="description",
+            label="Description",
+            placeholder="What is the issue? What needs to be done?",
+            required=True,
+            col_span=1
+        ),
+        MultiSelectField(
+            type="multiselect",
+            id="priority",
+            label="Priority",
+            required=False,
+            col_span=1,
+            options=[
+                OptionItem(id="low", label="Low"),
+                OptionItem(id="medium", label="Medium"),
+                OptionItem(id="high", label="High"),
+                OptionItem(id="critical", label="Critical")
+            ]
+        )
+    ]
+)
 
-def extract_citations(text: str, search_results=None) -> tuple[list[dict], str]:
-    """Extract citations and clean text - returns citations in the correct format"""
-    citations, offset = [], 0
-    pattern = r"\[([^\]]+)\]\(([^)]+)\)"
-    
-    for match in re.finditer(pattern, text):
-        content, url = match.groups()
-        start = match.start() - offset
+form_extension_spec = FormExtensionSpec(form_render)
 
-        citations.append({
-            "url": url,
-            "title": url.split("/")[-1].replace("-", " ").title() or content[:50],
-            "description": content[:100] + ("..." if len(content) > 100 else ""),
-            "start_index": start, 
-            "end_index": start + len(content)
-        })
-        offset += len(match.group(0)) - len(content)
-
-    return citations, re.sub(pattern, r"\1", text)
-
-def is_casual(msg: str) -> bool:
-    """Check if message is casual/greeting"""
-    casual_words = {'hey', 'hi', 'hello', 'thanks', 'bye', 'cool', 'nice', 'ok', 'yes', 'no'}
-    words = msg.lower().strip().split()
-    return len(words) <= 3 and any(w in casual_words for w in words)
-
-@server.agent(
-    name="Jenna's Granite Chat",
-    default_input_modes=["text", "text/plain", "application/pdf", "text/csv", "application/json"],
-    default_output_modes=["text", "text/plain"],
-    detail=AgentDetail(
-        interaction_mode="multi-turn",
-        user_greeting="Hi! I'm your Granite-powered AI assistant. How can I help?",
-        version="0.0.11",
-        tools=[
-            AgentDetailTool(
-                name="Think", 
-                description="Advanced reasoning and analysis to provide thoughtful, well-structured responses to complex questions and topics."
-            ),
-            AgentDetailTool(
-                name="DuckDuckGo", 
-                description="Search the web for current information, news, and real-time updates on any topic."
-            ),
-            AgentDetailTool(
-                name="File Processing", 
-                description="Read and analyze uploaded files including PDFs, text files, CSV data, and JSON documents."
-            )
-        ],
+agent_detail_extension_spec = AgentDetailExtensionSpec(
+    params=AgentDetail(
+        interaction_mode="single-turn",
+        user_greeting="I'll help you create a well-structured GitHub issue. Fill out the form below.",
+        version="0.0.1",
         framework="BeeAI",
         author={
             "name": "Jenna Winkler"
-        },
-        source_code_url="https://github.com/jenna-winkler/granite_chat"
+        }
+    )
+)
+
+@server.agent(
+    name="GitHub Issue Writer",
+    version="0.0.1",
+    default_input_modes=["text", "text/plain"],
+    default_output_modes=["text", "text/plain"],
+    capabilities=a2a.types.AgentCapabilities(
+        streaming=True,
+        push_notifications=False,
+        state_transition_history=False,
+        extensions=[
+            *form_extension_spec.to_agent_card_extensions(),
+            *agent_detail_extension_spec.to_agent_card_extensions(),
+        ],
     ),
     skills=[
         AgentSkill(
-            id="chat",
-            name="Chat",
-            description=dedent(
-                """\
-                The agent is an AI-powered conversational system designed to process user messages, maintain context,
-                generate intelligent responses, and analyze uploaded files.
-                """
-            ),
-            tags=["Chat", "Files"],
-            examples=[
-                "What are the latest advancements in AI research from 2025?",
-                "What's the difference between LLM tool use and API orchestration?",
-                "Can you help me draft an email apologizing for missing a meeting?",
-                "Analyze this CSV file and tell me the key trends.",
-                "Summarize the main points from this PDF document.",
-            ]
-
+            id="github_issue_writer",
+            name="GitHub Issue Writer",
+            description="Create well-structured GitHub issues with proper formatting",
+            tags=["GitHub", "Product Management"],
         )
     ],
 )
-async def general_chat_assistant(
+async def github_issue_writer(
     input: Message, 
     context: RunContext,
     citation: Annotated[CitationExtensionServer, CitationExtensionSpec()],
@@ -119,178 +121,106 @@ async def general_chat_assistant(
         LLMServiceExtensionSpec.single_demand(
             suggested=("ibm/granite-3-3-8b-instruct", "llama3.1", "gpt-4o-mini")
         )
-    ]
+    ],
+    form: Annotated[FormExtensionServer, form_extension_spec]
 ):
-    """
-    This is a general-purpose chat assistant prototype built with the BeeAI Framework and powered by Granite. It demonstrates advanced capabilities of both the BeeAI Framework and BeeAI SDK.
-
-    ### BeeAI Framework Features
-
-    - **RequirementAgent:** An experimental agent that selects and executes tools based on defined rules instead of relying solely on LLM decisions. ConditionalRequirement rules determine when and how each tool is used.
-    - **ThinkTool:** Provides advanced reasoning and structured analysis.
-    - **DuckDuckGoSearchTool:** Performs real-time web searches with invocation limits and casual message detection.
-    - **Memory Management:** Uses `UnconstrainedMemory` to maintain full conversation context with session persistence.
-    - **Error Handling:** Try-catch blocks provide clear messages; `is_casual()` skips unnecessary tool calls for simple messages.
-
-    ### BeeAI SDK Features
-
-    - **GUI Configuration:** Configures agent details including interaction mode, user greeting, tool descriptions, and metadata through AgentDetail.
-    - **TrajectoryMetadata:** Logs agent decisions and tool execution for transparency.
-    - **CitationMetadata:** Converts markdown links into structured objects for GUI display.
-    - **File Processing:** Supports text, PDF, CSV, and JSON files.
-    - **LLM Service Extension:** Uses platform-managed LLMs for consistent model access.
-    """
-
-    user_msg = ""
-    file_content = ""
-    uploaded_files = []
-    
-    for part in input.parts:
-        part_root = part.root
-        if part_root.kind == "text":
-            user_msg = part_root.text
-        elif part_root.kind == "file":
-            uploaded_files.append(part_root)
-    
-    if not user_msg:
-        user_msg = "Hello"
-    
-    memory = get_memory(context)
-    
-    if uploaded_files:
-        yield trajectory.trajectory_metadata(
-            title="Processing Files",
-            content=f"📁 Processing {len(uploaded_files)} uploaded file(s)"
-        )
-        
-        for file_part in uploaded_files:
-            try:
-                async with load_file(file_part) as loaded_content:
-                    filename = file_part.file.name
-                    content_type = file_part.file.mime_type
-                    
-                    content = loaded_content.text
-                    file_content += f"\n\n--- File: {filename} ({content_type}) ---\n{content}\n"
-                    
-                    yield trajectory.trajectory_metadata(
-                        title="File Loaded",
-                        content=f"📄 Loaded: {filename} ({len(content)} characters)"
-                    )
-                    
-            except Exception as e:
-                yield trajectory.trajectory_metadata(
-                    title="File Error",
-                    content=f"❌ Error loading {file_part.file.name}: {e}"
-                )
-    
-    full_message = user_msg
-    if file_content:
-        full_message += f"\n\nUploaded file content:{file_content}"
-    
-    yield trajectory.trajectory_metadata(
-        title="Processing Message",
-        content=f"💬 Processing: '{user_msg}'" + (f" with {len(uploaded_files)} file(s)" if uploaded_files else "")
-    )
+    """This agent provides a structured workflow for generating GitHub issues from user input. Users fill out a form specifying the issue title, type, description, and priority. The agent leverages the BeeAI Framework for managing agent execution, memory, and tool-based reasoning, and uses the BeeAI SDK to expose server endpoints, form-based UI extensions, and trajectory/citation tracking."""
     
     try:
-        await memory.add(UserMessage(full_message))
+        form_data = form.parse_form_response(message=input)
+        values = form_data.values
         
-        if not llm or not llm.data:
-            raise ValueError("LLM service extension is required but not available")
-            
-        llm_config = llm.data.llm_fulfillments.get("default")
+        title = values['title'].value if 'title' in values else 'Untitled Issue'
+        issue_types = values['issue_type'].value if 'issue_type' in values else ['feature']
+        description = values['description'].value if 'description' in values else ''
+        priority = values['priority'].value if 'priority' in values else ['medium']
         
-        if not llm_config:
-            raise ValueError("LLM service extension provided but no fulfillment available")
-        
-        llm_client = OpenAIChatModel(
-            model_id=llm_config.api_model,
-            base_url=llm_config.api_base,
-            api_key=llm_config.api_key,
-            parameters=ChatModelParameters(temperature=0.0),
-            tool_choice_support=set(),
+        yield trajectory.trajectory_metadata(
+            title="Processing Input",
+            content="Analyzing form data and preparing to enhance with AI"
         )
         
-        agent = RequirementAgent(
-            llm=llm_client, 
-            memory=memory,
-            tools=[ThinkTool(), DuckDuckGoSearchTool()],
-            requirements=[
-                ConditionalRequirement(ThinkTool, force_at_step=1, force_after=Tool, consecutive_allowed=False),
-                ConditionalRequirement(
-                    DuckDuckGoSearchTool, max_invocations=2, consecutive_allowed=False,
-                    custom_checks=[lambda state: not is_casual(user_msg)]
+        if llm and llm.data:
+            llm_config = llm.data.llm_fulfillments.get("default")
+            if llm_config:
+                llm_client = OpenAIChatModel(
+                    model_id=llm_config.api_model,
+                    base_url=llm_config.api_base,
+                    api_key=llm_config.api_key,
+                    parameters=ChatModelParameters(temperature=0.2),
+                    tool_choice_support=set(),
                 )
-            ],
-            instructions="""You are a helpful AI assistant. For search results, ALWAYS use proper markdown citations: [description](URL).
-
-Examples:
-- [OpenAI releases GPT-5](https://example.com/gpt5)
-- [AI adoption increases 67%](https://example.com/ai-study)
-
-Use DuckDuckGo for current info, facts, and specific questions. Respond naturally to casual greetings without search.
-
-When files are uploaded, analyze and summarize their content. For data files (CSV/JSON), highlight key insights and patterns."""
-        )
-        
-        yield trajectory.trajectory_metadata(
-            title="Agent Ready",
-            content="🛠️ Granite Chat ready with Think, Search tools" + (" and file processing" if uploaded_files else "")
-        )
-        
-        response_text = ""
-        search_results = None
-        
-        async for event, meta in agent.run(
-            full_message,
-            execution=AgentExecutionConfig(max_iterations=20, max_retries_per_step=2, total_max_retries=5),
-            expected_output="Markdown format with proper [text](URL) citations for search results."
-        ):
-            if meta.name == "success" and event.state.steps:
-                step = event.state.steps[-1]
-                if not step.tool:
-                    continue
-                    
-                tool_name = step.tool.name
                 
-                if tool_name == "final_answer":
-                    response_text += step.input["response"]
-                elif tool_name == "DuckDuckGo":
-                    search_results = getattr(step.output, 'results', None)
-                    query = step.input.get("query", "Unknown")
-                    count = len(search_results) if search_results else 0
-                    
-                    yield trajectory.trajectory_metadata(
-                        title="DuckDuckGo Search",
-                        content=f"🔍 Searched: '{query}' → {count} results"
-                    )
-                elif tool_name == "think":
-                    yield trajectory.trajectory_metadata(
-                        title="Thought",
-                        content=step.input["thoughts"]
-                    )
-        
-        await memory.add(AssistantMessage(response_text))
-        
-        citations, clean_text = extract_citations(response_text, search_results)
+                memory = UnconstrainedMemory()
+                
+                tools = [ThinkTool()]
+                requirements = [ConditionalRequirement(ThinkTool, force_at_step=1)]
+                
+                prompt = f"""Transform this into a professional GitHub issue:
 
-        yield clean_text
-        
-        if citations:
-            yield citation.citation_metadata(citations=citations)
-            
-        yield trajectory.trajectory_metadata(
-            title="Completion",
-            content="✅ Response completed"
-        )
+Title: {title}
+Type: {', '.join(issue_types)}
+Priority: {', '.join(priority)}
+Description: {description}
+
+Create a complete GitHub issue with improved title, detailed description, appropriate sections, and acceptance criteria. Use proper markdown formatting."""
+                
+                await memory.add(UserMessage(prompt))
+                
+                agent = RequirementAgent(
+                    llm=llm_client, 
+                    memory=memory,
+                    tools=tools,
+                    requirements=requirements,
+                    instructions="Create professional GitHub issues with proper markdown formatting. Be thorough and complete."
+                )
+                
+                yield trajectory.trajectory_metadata(
+                    title="Enhancing with AI",
+                    content="Using AI to create professional GitHub issue"
+                )
+                
+                full_response = ""
+                
+                async for event, meta in agent.run(
+                    prompt,
+                    execution=AgentExecutionConfig(
+                        max_iterations=10, 
+                        max_retries_per_step=3,
+                        total_max_retries=5
+                    ),
+                    expected_output="Complete GitHub issue in markdown format"
+                ):
+                    if meta.name == "success" and event.state.steps:
+                        step = event.state.steps[-1]
+                        if step.tool and step.tool.name == "final_answer":
+                            response = step.input.get("response", "")
+                            if response and len(response) > 10:
+                                full_response = response
+                        elif step.tool and step.tool.name == "think":
+                            yield trajectory.trajectory_metadata(
+                                title="Thinking",
+                                content="AI analyzing and structuring the issue"
+                            )
+                
+                if full_response and len(full_response) > 20:
+                    yield full_response
+                    return
+                
+                messages = memory.messages
+                for msg in reversed(messages):
+                    if hasattr(msg, 'role') and msg.role == 'assistant':
+                        content = getattr(msg, 'text', None) or getattr(msg, 'content', None)
+                        if content and len(content) > 20:
+                            yield content
+                            return
 
     except Exception as e:
-        print(f"❌ Error: {e}\n{traceback.format_exc()}")
         yield trajectory.trajectory_metadata(
             title="Error",
-            content=f"❌ Error: {e}"
+            content=f"Error processing form: {str(e)}"
         )
-        yield f"🚨 Error processing request: {e}"
+        yield f"Error creating GitHub issue: {str(e)}"
 
 def run():
     """Start the server"""
