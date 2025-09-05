@@ -190,7 +190,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "beeai-framework", specifier = ">=0.1.42" },
-    { name = "beeai-sdk", specifier = ">=0.3.3rc3" },
+    { name = "beeai-sdk", specifier = ">=0.3.3rc6" },
     { name = "ddgs", specifier = ">=9.4.3,<10.0.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
@@ -219,7 +219,7 @@ wheels = [
 
 [[package]]
 name = "beeai-sdk"
-version = "0.3.3rc3"
+version = "0.3.3rc6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "a2a-sdk" },
@@ -239,9 +239,9 @@ dependencies = [
     { name = "tenacity" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e6/12/d5b19d1ffa273a4033c3259c9a0a582e3e2b109696e000dcc3a081a1be0e/beeai_sdk-0.3.3rc3.tar.gz", hash = "sha256:ce77452c45f1732f49229158c4050f61400e551bdb98148489d1e3266ce7ffec", size = 30019, upload-time = "2025-09-04T14:26:26.204Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bf/04/3863711b2de69e69530cf4127d7f610f1feca51cc347ee9cde4b04a736b1/beeai_sdk-0.3.3rc6.tar.gz", hash = "sha256:9e16e7286c653157645eeced4bacf62116ef469a7218d664cb05a85aae57cc04", size = 30012, upload-time = "2025-09-05T14:49:44.482Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7e/14/634451739a1cd3eb24195e2dae9775c4b671f14d1a247448ec3e16cfd20b/beeai_sdk-0.3.3rc3-py3-none-any.whl", hash = "sha256:9cffd1f9b4b5f5aa831387e3c104b2028c67200b44f66be9506eb939f0afd2c2", size = 51406, upload-time = "2025-09-04T14:26:25.094Z" },
+    { url = "https://files.pythonhosted.org/packages/69/cd/0d500bec95268234cb56e4b7d3dbc7dfa0ed08dfcb02d6898d176386ef0c/beeai_sdk-0.3.3rc6-py3-none-any.whl", hash = "sha256:53fe55e17c8e186fc034e83b4efc17e0d9f7d670fc8301fe9de2d28a41f93eaa", size = 51407, upload-time = "2025-09-05T14:49:43.194Z" },
 ]
 
 [[package]]
