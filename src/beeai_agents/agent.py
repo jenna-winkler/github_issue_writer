@@ -147,7 +147,6 @@ async def github_issue_writer(
                     model_id=llm_config.api_model,
                     base_url=llm_config.api_base,
                     api_key=llm_config.api_key,
-                    parameters=ChatModelParameters(temperature=0.2),
                     tool_choice_support=set(),
                 )
                 
