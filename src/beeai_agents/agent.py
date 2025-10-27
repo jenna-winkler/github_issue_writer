@@ -11,8 +11,8 @@ from beeai_sdk.server import Server
 from beeai_sdk.server.context import RunContext
 from beeai_sdk.a2a.extensions import AgentDetailExtensionSpec, AgentDetail, CitationExtensionServer, CitationExtensionSpec, TrajectoryExtensionServer, TrajectoryExtensionSpec, LLMServiceExtensionServer, LLMServiceExtensionSpec
 from beeai_sdk.a2a.extensions.ui.form import TextField, MultiSelectField, OptionItem, FormExtensionServer, FormExtensionSpec, FormRender
-from beeai_framework.agents.experimental import RequirementAgent
-from beeai_framework.agents.experimental.requirements.conditional import ConditionalRequirement
+from beeai_framework.agents.requirement import RequirementAgent
+from beeai_framework.agents.requirement.requirements.conditional import ConditionalRequirement
 from beeai_framework.agents.types import AgentExecutionConfig
 from beeai_framework.backend.message import UserMessage
 from beeai_framework.memory import UnconstrainedMemory
