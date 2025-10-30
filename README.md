@@ -12,4 +12,4 @@ Generates well-structured GitHub issues from a simple form input. Users provide 
 ## Tech Stack
 
 - BeeAI Framework
-- BeeAI SDK
+- Agent Stack SDK

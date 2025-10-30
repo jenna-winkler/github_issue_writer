@@ -7,10 +7,10 @@ from dotenv import load_dotenv
 
 import a2a.types
 from a2a.types import AgentSkill, Message
-from beeai_sdk.server import Server
-from beeai_sdk.server.context import RunContext
-from beeai_sdk.a2a.extensions import AgentDetailExtensionSpec, AgentDetail, CitationExtensionServer, CitationExtensionSpec, TrajectoryExtensionServer, TrajectoryExtensionSpec, LLMServiceExtensionServer, LLMServiceExtensionSpec
-from beeai_sdk.a2a.extensions.ui.form import TextField, MultiSelectField, OptionItem, FormExtensionServer, FormExtensionSpec, FormRender
+from agentstack_sdk.server import Server
+from agentstack_sdk.server.context import RunContext
+from agentstack_sdk.a2a.extensions import AgentDetailExtensionSpec, AgentDetail, CitationExtensionServer, CitationExtensionSpec, TrajectoryExtensionServer, TrajectoryExtensionSpec, LLMServiceExtensionServer, LLMServiceExtensionSpec
+from agentstack_sdk.a2a.extensions.ui.form import TextField, MultiSelectField, OptionItem, FormExtensionServer, FormExtensionSpec, FormRender
 from beeai_framework.agents.experimental import RequirementAgent
 from beeai_framework.agents.experimental.requirements.conditional import ConditionalRequirement
 from beeai_framework.agents.types import AgentExecutionConfig
@@ -81,7 +81,7 @@ agent_detail_extension_spec = AgentDetailExtensionSpec(
         interaction_mode="single-turn",
         user_greeting="I'll help you create a well-structured GitHub issue. Fill out the form below.",
         version="0.0.1",
-        framework="BeeAI",
+        framework="BeeAI Framework",
         author={
             "name": "Jenna Winkler"
         }
@@ -90,7 +90,6 @@ agent_detail_extension_spec = AgentDetailExtensionSpec(
 
 @server.agent(
     name="GitHub Issue Writer",
-    version="0.0.1",
     default_input_modes=["text", "text/plain"],
     default_output_modes=["text", "text/plain"],
     capabilities=a2a.types.AgentCapabilities(
@@ -124,7 +123,7 @@ async def github_issue_writer(
     ],
     form: Annotated[FormExtensionServer, form_extension_spec]
 ):
-    """This agent provides a structured workflow for generating GitHub issues from user input. Users fill out a form specifying the issue title, type, description, and priority. The agent leverages the BeeAI Framework for managing agent execution, memory, and tool-based reasoning, and uses the BeeAI SDK to expose server endpoints, form-based UI extensions, and trajectory/citation tracking."""
+    """This agent provides a structured workflow for generating GitHub issues from user input. Users fill out a form specifying the issue title, type, description, and priority. The agent leverages the BeeAI Framework for managing agent execution, memory, and tool-based reasoning, and uses the Agent Stack SDK to expose server endpoints, form-based UI extensions, and trajectory/citation tracking."""
     
     try:
         form_data = form.parse_form_response(message=input)
