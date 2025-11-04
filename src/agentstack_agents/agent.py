@@ -119,7 +119,7 @@ async def github_issue_writer(
     llm: Annotated[
         LLMServiceExtensionServer, 
         LLMServiceExtensionSpec.single_demand(
-            suggested=("ibm/granite-3-3-8b-instruct", "llama3.1", "gpt-4o-mini")
+            suggested=("ibm-granite/granite-3.3-8b-instruct",)
         )
     ],
     form: Annotated[FormExtensionServer, form_extension_spec]
