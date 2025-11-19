@@ -10,7 +10,7 @@ from agentstack_sdk.server.context import RunContext
 from agentstack_sdk.a2a.extensions import AgentDetailExtensionSpec, AgentDetail, CitationExtensionServer, CitationExtensionSpec, TrajectoryExtensionServer, TrajectoryExtensionSpec, LLMServiceExtensionServer, LLMServiceExtensionSpec
 from agentstack_sdk.a2a.extensions.ui.form import TextField, SingleSelectField, OptionItem, FormExtensionServer, FormExtensionSpec, FormRender
 
-from beeai_framework.adapters.openai import OpenAIChatModel
+from beeai_framework.adapters.agentstack.backend.chat import AgentStackChatModel
 from beeai_framework.backend.types import ChatModelParameters
 from beeai_framework.agents.requirement import RequirementAgent
 from beeai_framework.agents.requirement.requirements.conditional import ConditionalRequirement
@@ -139,12 +139,8 @@ async def github_issue_writer(
         if llm and llm.data:
             llm_config = llm.data.llm_fulfillments.get("default")
             if llm_config:
-                llm_client = OpenAIChatModel(
-                    model_id=llm_config.api_model,
-                    base_url=llm_config.api_base,
-                    api_key=llm_config.api_key,
-                    tool_choice_support=set(),
-                )
+                llm_client = AgentStackChatModel(parameters=ChatModelParameters(stream=True))
+                llm_client.set_context(llm)
                 
                 memory = UnconstrainedMemory()
                 
