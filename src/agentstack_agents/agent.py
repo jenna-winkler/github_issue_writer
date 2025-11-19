@@ -8,7 +8,7 @@ from a2a.types import AgentSkill, Message
 from agentstack_sdk.server import Server
 from agentstack_sdk.server.context import RunContext
 from agentstack_sdk.a2a.extensions import AgentDetailExtensionSpec, AgentDetail, CitationExtensionServer, CitationExtensionSpec, TrajectoryExtensionServer, TrajectoryExtensionSpec, LLMServiceExtensionServer, LLMServiceExtensionSpec
-from agentstack_sdk.a2a.extensions.ui.form import TextField, MultiSelectField, OptionItem, FormExtensionServer, FormExtensionSpec, FormRender
+from agentstack_sdk.a2a.extensions.ui.form import TextField, SingleSelectField, OptionItem, FormExtensionServer, FormExtensionSpec, FormRender
 
 from beeai_framework.adapters.openai import OpenAIChatModel
 from beeai_framework.backend.types import ChatModelParameters
@@ -31,15 +31,13 @@ form_render = FormRender(
     submit_label="Generate Issue",
     fields=[
         TextField(
-            type="text",
             id="title",
             label="Issue Title",
             placeholder="Brief, descriptive title for the issue",
             required=True,
             col_span=1
         ),
-        MultiSelectField(
-            type="multiselect",
+        SingleSelectField(
             id="issue_type",
             label="Issue Type",
             required=True,
@@ -52,15 +50,13 @@ form_render = FormRender(
             ]
         ),
         TextField(
-            type="text",
             id="description",
             label="Description",
             placeholder="What is the issue? What needs to be done?",
             required=True,
             col_span=1
         ),
-        MultiSelectField(
-            type="multiselect",
+        SingleSelectField(
             id="priority",
             label="Priority",
             required=False,
