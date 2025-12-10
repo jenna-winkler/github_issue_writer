@@ -8,7 +8,8 @@ from a2a.types import AgentSkill, Message
 from agentstack_sdk.server import Server
 from agentstack_sdk.server.context import RunContext
 from agentstack_sdk.a2a.extensions import AgentDetailExtensionSpec, AgentDetail, CitationExtensionServer, CitationExtensionSpec, TrajectoryExtensionServer, TrajectoryExtensionSpec, LLMServiceExtensionServer, LLMServiceExtensionSpec
-from agentstack_sdk.a2a.extensions.ui.form import TextField, SingleSelectField, OptionItem, FormExtensionServer, FormExtensionSpec, FormRender
+from agentstack_sdk.a2a.extensions.common.form import TextField, SingleSelectField, OptionItem, FormRender
+from agentstack_sdk.a2a.extensions.services.form import FormServiceExtensionServer, FormServiceExtensionSpec
 
 from beeai_framework.adapters.agentstack.backend.chat import AgentStackChatModel
 from beeai_framework.backend.types import ChatModelParameters
@@ -18,6 +19,7 @@ from beeai_framework.agents.types import AgentExecutionConfig
 from beeai_framework.backend.message import UserMessage
 from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.tools.think import ThinkTool
+from beeai_framework.errors import FrameworkError
 
 load_dotenv()
 
@@ -71,7 +73,7 @@ form_render = FormRender(
     ]
 )
 
-form_extension_spec = FormExtensionSpec(form_render)
+form_extension_spec = FormServiceExtensionSpec.demand(initial_form=form_render)
 
 agent_detail_extension_spec = AgentDetailExtensionSpec(
     params=AgentDetail(
@@ -118,12 +120,18 @@ async def github_issue_writer(
             suggested=("ibm-granite/granite-4.0-h-small",)
         )
     ],
-    form: Annotated[FormExtensionServer, form_extension_spec]
+    form: Annotated[FormServiceExtensionServer, form_extension_spec]
 ):
     """This agent provides a structured workflow for generating GitHub issues from user input. Users fill out a form specifying the issue title, type, description, and priority. The agent leverages the BeeAI Framework for managing agent execution, memory, and tool-based reasoning, and uses the Agent Stack SDK to expose server endpoints, form-based UI extensions, and trajectory/citation tracking."""
     
     try:
-        form_data = form.parse_form_response(message=input)
+        # Parse form data
+        yield trajectory.trajectory_metadata(
+            title="Processing Input",
+            content="Parsing form data"
+        )
+        
+        form_data = form.parse_initial_form()
         values = form_data.values
         
         title = values['title'].value if 'title' in values else 'Untitled Issue'
@@ -132,84 +140,147 @@ async def github_issue_writer(
         priority = values['priority'].value if 'priority' in values else ['medium']
         
         yield trajectory.trajectory_metadata(
-            title="Processing Input",
-            content="Analyzing form data and preparing to enhance with AI"
+            title="Form Data Received",
+            content=f"Title: {title} | Type: {', '.join(issue_types)} | Priority: {', '.join(priority)}"
         )
         
-        if llm and llm.data:
-            llm_config = llm.data.llm_fulfillments.get("default")
-            if llm_config:
-                llm_client = AgentStackChatModel(parameters=ChatModelParameters(stream=True))
-                llm_client.set_context(llm)
-                
-                memory = UnconstrainedMemory()
-                
-                tools = [ThinkTool()]
-                requirements = [ConditionalRequirement(ThinkTool, force_at_step=1)]
-                
-                prompt = f"""Transform this into a professional GitHub issue:
+        # Check LLM service availability
+        if not llm or not llm.data:
+            yield trajectory.trajectory_metadata(
+                title="Error",
+                content="LLM service extension is required but not available"
+            )
+            yield "Error: LLM service is not properly configured. Please check your model provider settings in Agent Stack."
+            return
+        
+        # Initialize LLM client
+        llm_client = AgentStackChatModel(parameters=ChatModelParameters(stream=True))
+        llm_client.set_context(llm)
+        
+        yield trajectory.trajectory_metadata(
+            title="LLM Ready",
+            content=f"Using model: {llm_client.model_id}"
+        )
+        
+        # Set up memory and tools
+        memory = UnconstrainedMemory()
+        tools = [ThinkTool()]
+        requirements = [ConditionalRequirement(ThinkTool, force_at_step=1)]
+        
+        # Create prompt for AI enhancement
+        prompt = f"""Transform this into a professional GitHub issue:
 
 Title: {title}
 Type: {', '.join(issue_types)}
 Priority: {', '.join(priority)}
 Description: {description}
 
-Create a complete GitHub issue with improved title, detailed description, appropriate sections, and acceptance criteria. Use proper markdown formatting."""
-                
-                await memory.add(UserMessage(prompt))
-                
-                agent = RequirementAgent(
-                    llm=llm_client, 
-                    memory=memory,
-                    tools=tools,
-                    requirements=requirements,
-                    instructions="Create professional GitHub issues with proper markdown formatting. Be thorough and complete."
-                )
-                
-                yield trajectory.trajectory_metadata(
-                    title="Enhancing with AI",
-                    content="Using AI to create professional GitHub issue"
-                )
-                
-                full_response = ""
-                
-                async for event, meta in agent.run(
-                    prompt,
-                    execution=AgentExecutionConfig(
-                        max_iterations=10, 
-                        max_retries_per_step=3,
-                        total_max_retries=5
-                    ),
-                    expected_output="Complete GitHub issue in markdown format"
-                ):
-                    if meta.name == "success" and event.state.steps:
-                        step = event.state.steps[-1]
-                        if step.tool and step.tool.name == "final_answer":
-                            response = step.input.get("response", "")
-                            if response and len(response) > 10:
-                                full_response = response
-                        elif step.tool and step.tool.name == "think":
-                            yield trajectory.trajectory_metadata(
-                                title="Thinking",
-                                content="AI analyzing and structuring the issue"
-                            )
-                
-                if full_response and len(full_response) > 20:
-                    yield full_response
-                    return
-                
-                messages = memory.messages
-                for msg in reversed(messages):
-                    if hasattr(msg, 'role') and msg.role == 'assistant':
-                        content = getattr(msg, 'text', None) or getattr(msg, 'content', None)
-                        if content and len(content) > 20:
-                            yield content
-                            return
+Create a complete GitHub issue with:
+1. An improved, clear title
+2. A detailed description section
+3. Relevant sections based on issue type (e.g., Steps to Reproduce for bugs, Use Case for features)
+4. Acceptance criteria
+5. Proper markdown formatting
 
+Use clear headings (##), bullet points, and formatting to make it professional and easy to read."""
+        
+        await memory.add(UserMessage(prompt))
+        
+        # Initialize agent
+        agent = RequirementAgent(
+            llm=llm_client, 
+            memory=memory,
+            tools=tools,
+            requirements=requirements,
+            instructions="Create professional GitHub issues with proper markdown formatting. Be thorough and complete. Use ## for headings, - for bullets, and **bold** for emphasis."
+        )
+        
+        yield trajectory.trajectory_metadata(
+            title="Enhancing with AI",
+            content="Using AI to create professional GitHub issue"
+        )
+        
+        full_response = ""
+        
+        # Run agent and stream response
+        async for event, meta in agent.run(
+            prompt,
+            execution=AgentExecutionConfig(
+                max_iterations=10, 
+                max_retries_per_step=3,
+                total_max_retries=5
+            ),
+            expected_output="Complete GitHub issue in markdown format"
+        ):
+            if meta.name == "success" and event.state.steps:
+                step = event.state.steps[-1]
+                
+                if step.tool and step.tool.name == "think":
+                    thoughts = step.input.get("thoughts", "Processing...")
+                    yield trajectory.trajectory_metadata(
+                        title="Thinking",
+                        content=thoughts
+                    )
+                
+                elif step.tool and step.tool.name == "final_answer":
+                    response = step.input.get("response", "")
+                    if response and len(response) > 10:
+                        full_response = response
+        
+        # Return the enhanced issue
+        if full_response and len(full_response) > 20:
+            yield trajectory.trajectory_metadata(
+                title="Complete",
+                content="GitHub issue generated successfully"
+            )
+            yield full_response
+            return
+        
+        # Fallback: check memory for assistant responses
+        messages = memory.messages
+        for msg in reversed(messages):
+            if hasattr(msg, 'role') and msg.role == 'assistant':
+                content = getattr(msg, 'text', None) or getattr(msg, 'content', None)
+                if content and len(content) > 20:
+                    yield trajectory.trajectory_metadata(
+                        title="Complete",
+                        content="GitHub issue generated successfully"
+                    )
+                    yield content
+                    return
+        
+        # Final fallback
+        yield trajectory.trajectory_metadata(
+            title="Warning",
+            content="AI did not generate expected output, returning formatted input"
+        )
+        
+        yield f"""## {title}
+
+**Type:** {', '.join(issue_types)}  
+**Priority:** {', '.join(priority)}
+
+## Description
+
+{description}
+
+## Acceptance Criteria
+
+- [ ] TODO: Define acceptance criteria
+"""
+
+    except FrameworkError as e:
+        error_msg = e.explain()
+        yield trajectory.trajectory_metadata(
+            title="Framework Error",
+            content=f"BeeAI Framework error: {error_msg}"
+        )
+        yield f"Error creating GitHub issue: {error_msg}"
+    
     except Exception as e:
         yield trajectory.trajectory_metadata(
             title="Error",
-            content=f"Error processing form: {str(e)}"
+            content=f"Unexpected error: {str(e)}"
         )
         yield f"Error creating GitHub issue: {str(e)}"
 
@@ -219,3 +290,4 @@ def run():
 
 if __name__ == "__main__":
     run()
+    

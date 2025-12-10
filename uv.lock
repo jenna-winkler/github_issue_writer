@@ -53,8 +53,8 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agentstack-sdk", specifier = ">=0.4.1" },
-    { name = "beeai-framework", extras = ["agentstack"], specifier = ">=0.1.67" },
+    { name = "agentstack-sdk", specifier = ">=0.4.2" },
+    { name = "beeai-framework", extras = ["agentstack"], specifier = ">=0.1.72" },
     { name = "ddgs", specifier = ">=9.9.1,<10.0.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
@@ -63,7 +63,7 @@ requires-dist = [
 
 [[package]]
 name = "agentstack-sdk"
-version = "0.4.1"
+version = "0.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "a2a-sdk" },
@@ -83,9 +83,9 @@ dependencies = [
     { name = "tenacity" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/ad/f108267a606dc2de5bd50f3c1e9b4c3c30889a4374b794767473d65eb136/agentstack_sdk-0.4.1.tar.gz", hash = "sha256:e1e9b9ed5415c3c71a3957f746ee049493ff76a751b102450477dc94b6fbd700", size = 37954, upload-time = "2025-11-10T15:07:22.716Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/62/4d/188e10b27e542a44e9c7926a099a266c54101fe0e30b68879c911f8158fc/agentstack_sdk-0.4.2.tar.gz", hash = "sha256:8a1cf1133ad57b41d1f17a20f876685787a0597851b392c742d0ea212159b0e2", size = 41327, upload-time = "2025-12-02T17:54:59.811Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1d/7d/2ebd281d5b811c5ad4359560179eafe21aba49090e3360825673ddea9ad7/agentstack_sdk-0.4.1-py3-none-any.whl", hash = "sha256:46d4f5c22313f6c6a6f1c3c99535398ade6bdb8d0fd721f86538b35b2bed34ec", size = 67455, upload-time = "2025-11-10T15:07:21.357Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/91/f8af05dfbf3ef17900dd406b69b5f648dc1867c2e53893fbe9ed605ef73a/agentstack_sdk-0.4.2-py3-none-any.whl", hash = "sha256:e1eb23836316e50dd4521f6baed6e04cfe5c7c6ba621fb5b0407c07b642ae3d3", size = 73861, upload-time = "2025-12-02T17:54:58.239Z" },
 ]
 
 [[package]]
@@ -285,7 +285,7 @@ wheels = [
 
 [[package]]
 name = "beeai-framework"
-version = "0.1.67"
+version = "0.1.72"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -299,9 +299,9 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ab/46/e56e80a76d659d2afc692025f5021ac20ebbaae84fb11c5c5ba5a8c94989/beeai_framework-0.1.67.tar.gz", hash = "sha256:ce2a59c359dda5340530b7c3119f0d2cfb831a1ff116558bfc7880a121cbef3d", size = 180054, upload-time = "2025-11-18T17:09:15.967Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/50/7b/0a6bf76ea610750b35f0e0e62470a29a4eb6609c704fa809eed0118bfc35/beeai_framework-0.1.72.tar.gz", hash = "sha256:a70d4c62d39b0d27a8a039c7822c6e3e5dcad639282907279c570565bf23b6fe", size = 185132, upload-time = "2025-12-04T15:57:14.502Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c8/d0/a67b3d502a4751158fc12cfdf182f278cefa547795c8a132bf19d906fb60/beeai_framework-0.1.67-py3-none-any.whl", hash = "sha256:81da1fb1473252ff5c6e3c2d9841eb43a06d55713bc7f686c86bc2044cfba5b7", size = 332948, upload-time = "2025-11-18T17:09:14.235Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/4a/567ddfb74b54b0dc6ea11df4def2379212b5944be0002f719fca740cb12c/beeai_framework-0.1.72-py3-none-any.whl", hash = "sha256:c6df468b591ebae3ea00bc7eb879f8dc94a4fca94a6339949c1d9b5c419d01e8", size = 341547, upload-time = "2025-12-04T15:57:13.015Z" },
 ]
 
 [package.optional-dependencies]
