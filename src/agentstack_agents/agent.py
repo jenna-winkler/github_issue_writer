@@ -141,7 +141,7 @@ async def github_issue_writer(
         
         yield trajectory.trajectory_metadata(
             title="Form Data Received",
-            content=f"Title: {title} | Type: {', '.join(issue_types)} | Priority: {', '.join(priority)}"
+            content=f"Title: {title} | Type: {''.join(issue_types)} | Priority: {''.join(priority)}"
         )
         
         # Check LLM service availability
